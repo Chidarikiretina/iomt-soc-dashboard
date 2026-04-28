@@ -13,8 +13,9 @@ services:
         value: 3.11.0
 
   # ── 2. React Frontend (Static Site) ────────────────────────────────────────
-  - type: static
+  - type: web
     name: iomt-soc-frontend
+    runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
