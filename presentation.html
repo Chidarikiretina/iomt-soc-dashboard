@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IoMT SOC — Group Presentation</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#020617;color:#e2e8f0;overflow:hidden;height:100vh;width:100vw}
+
+/* ── All slides always rendered, opacity toggles ── */
+.deck{position:relative;width:100vw;height:100vh}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  padding:52px 76px;
+  opacity:0;pointer-events:none;
+  transition:opacity .3s ease;
+}
+.slide.active{opacity:1;pointer-events:auto}
+
+/* ── Navigation ── */
+.nav{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:14px;z-index:999;
+  background:rgba(15,23,42,.95);backdrop-filter:blur(12px);
+  border:1px solid #1e293b;border-radius:40px;padding:9px 20px;
+  user-select:none;
+}
+.nav button{
+  background:none;border:none;color:#64748b;font-size:16px;
+  cursor:pointer;padding:4px 10px;border-radius:8px;transition:color .2s;
+}
+.nav button:hover{color:#e2e8f0}
+.nav .counter{font-size:11px;color:#475569;font-family:monospace;min-width:46px;text-align:center}
+.dots{display:flex;gap:5px;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:#1e293b;transition:all .25s;cursor:pointer;flex-shrink:0}
+.dot.on{background:#6366f1;transform:scale(1.4)}
+.dot.div-dot{width:4px;height:4px;background:#1e293b}
+
+/* ── Presenter badge ── */
+.presenter{position:absolute;top:22px;right:76px;display:flex;align-items:center;gap:8px}
+.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+.pname-badge{font-size:11px;font-weight:600;color:#64748b;letter-spacing:.3px}
+
+/* ── Section divider ── */
+.divider{justify-content:center;align-items:center;text-align:center}
+.div-num{font-size:200px;font-weight:900;letter-spacing:-10px;line-height:1;opacity:.04;position:absolute;pointer-events:none}
+.div-inner{position:relative;z-index:1}
+.div-section{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#475569;margin-bottom:14px}
+.divider h1{font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.div-presenter{font-size:19px;font-weight:600;margin-top:22px}
+.div-role{font-size:13px;color:#64748b;margin-top:5px}
+.div-tags{display:flex;gap:8px;justify-content:center;margin-top:20px;flex-wrap:wrap}
+
+/* ── Typography ── */
+.section-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#475569;font-weight:700;border-left:3px solid #6366f1;padding-left:9px;margin-bottom:14px}
+h2{font-size:28px;font-weight:800;letter-spacing:-.5px;color:#f8fafc;margin-bottom:18px}
+h3{font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:5px}
+p{font-size:13px;color:#94a3b8;line-height:1.6}
+.hi{color:#f8fafc;font-weight:600}
+.mono{font-family:monospace;color:#a5b4fc;font-size:12px}
+.muted{color:#475569;font-size:11px}
+
+/* ── Tags ── */
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 9px;border-radius:16px;border:1px solid;white-space:nowrap}
+.tv{background:rgba(99,102,241,.15);color:#a5b4fc;border-color:rgba(99,102,241,.35)}
+.tr{background:rgba(239,68,68,.12);color:#fca5a5;border-color:rgba(239,68,68,.3)}
+.tg{background:rgba(16,185,129,.12);color:#6ee7b7;border-color:rgba(16,185,129,.3)}
+.ta{background:rgba(245,158,11,.12);color:#fcd34d;border-color:rgba(245,158,11,.3)}
+.tb{background:rgba(59,130,246,.12);color:#93c5fd;border-color:rgba(59,130,246,.3)}
+
+/* ── Cards ── */
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px 18px}
+.al{border-left:3px solid #6366f1}.ar{border-left:3px solid #ef4444}
+.ag{border-left:3px solid #10b981}.ab{border-left:3px solid #3b82f6}
+.aa{border-left:3px solid #f59e0b}
+
+/* ── Layouts ── */
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.cols4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stack{display:flex;flex-direction:column;gap:9px}
+.row{display:flex;gap:8px;align-items:flex-start}
+
+/* ── Stat ── */
+.stat{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px 16px}
+.stat .val{font-size:30px;font-weight:800;line-height:1;letter-spacing:-1px}
+.stat .lbl{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-top:4px}
+
+/* ── Obj row ── */
+.orow{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid #0f172a}
+.orow:last-child{border:none}
+.oicon{width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px}
+
+/* ── Gantt ── */
+.gmonths{display:flex;padding:0 0 4px 132px;font-size:10px;color:#334155;gap:0}
+.gmonths span{flex:1;text-align:center}
+.grow{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.glabel{width:122px;font-size:11px;color:#94a3b8;text-align:right;flex-shrink:0}
+.gtrack{flex:1;height:9px;background:#1e293b;border-radius:99px;overflow:visible;position:relative}
+.gbar{position:absolute;top:0;height:100%;border-radius:99px}
+
+/* ── Arch ── */
+.abox{background:#0f172a;border:1px solid #334155;border-radius:9px;padding:10px 14px;text-align:center;font-size:11.5px;color:#94a3b8;flex:1}
+.abox .atop{font-size:10px;font-weight:700;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.aarrow{color:#334155;font-size:16px;flex-shrink:0;display:flex;align-items:center;padding:0 2px}
+
+/* ── Blocker table ── */
+.btbl{width:100%;border-collapse:collapse;font-size:12px}
+.btbl th{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#475569;padding:7px 10px;text-align:left;border-bottom:1px solid #1e293b}
+.btbl td{padding:8px 10px;border-bottom:1px solid #080d18;vertical-align:top;color:#94a3b8;line-height:1.5}
+.btbl tr:nth-child(odd) td{background:#080d18}
+
+/* ── Member accent colours ── */
+.c1{color:#818cf8}.c2{color:#34d399}.c3{color:#60a5fa}.c4{color:#f472b6}.c5{color:#fb923c}
+.bg1{background:rgba(99,102,241,.2)}.bg2{background:rgba(52,211,153,.2)}
+.bg3{background:rgba(96,165,250,.2)}.bg4{background:rgba(244,114,182,.2)}.bg5{background:rgba(251,146,60,.2)}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ══ SLIDE 0 · GROUP TITLE ══ -->
+<div class="slide active" id="s0" style="justify-content:center;background:radial-gradient(ellipse at 55% 40%,rgba(99,102,241,.08) 0%,transparent 65%)">
+  <div>
+    <div class="tag tv" style="margin-bottom:18px">Final Year Project · Jan–May 2026 · Group Presentation</div>
+    <h1 style="font-size:50px;font-weight:900;letter-spacing:-2px;line-height:1.05;background:linear-gradient(130deg,#e2e8f0,#a5b4fc 55%,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">IoMT Security<br>Operations Center</h1>
+    <p style="font-size:15px;color:#475569;margin-top:12px;max-width:560px;line-height:1.65">A real-time ML threat detection and response platform for Internet of Medical Things networks — from raw dataset to live analyst dashboard.</p>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:30px;max-width:680px">
+      <div style="text-align:center;padding:14px 6px;background:#0f172a;border:1px solid #1e293b;border-top:3px solid #818cf8;border-radius:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(99,102,241,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:13px;font-weight:800;color:#818cf8">PC</div>
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">Precious</div>
+        <div class="muted" style="margin-top:2px">Introduction</div>
+      </div>
+      <div style="text-align:center;padding:14px 6px;background:#0f172a;border:1px solid #1e293b;border-top:3px solid #34d399;border-radius:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(52,211,153,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:13px;font-weight:800;color:#34d399">JM</div>
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">Jubillee</div>
+        <div class="muted" style="margin-top:2px">ML Model</div>
+      </div>
+      <div style="text-align:center;padding:14px 6px;background:#0f172a;border:1px solid #1e293b;border-top:3px solid #60a5fa;border-radius:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(96,165,250,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:13px;font-weight:800;color:#60a5fa">TC</div>
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">Tinashe</div>
+        <div class="muted" style="margin-top:2px">Backend</div>
+      </div>
+      <div style="text-align:center;padding:14px 6px;background:#0f172a;border:1px solid #1e293b;border-top:3px solid #f472b6;border-radius:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(244,114,182,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:13px;font-weight:800;color:#f472b6">PT</div>
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">Primrose</div>
+        <div class="muted" style="margin-top:2px">Dashboard</div>
+      </div>
+      <div style="text-align:center;padding:14px 6px;background:#0f172a;border:1px solid #1e293b;border-top:3px solid #fb923c;border-radius:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(251,146,60,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:13px;font-weight:800;color:#fb923c">EC</div>
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">Evelyn</div>
+        <div class="muted" style="margin-top:2px">Evaluation</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER 1 · PRECIOUS ══ -->
+<div class="slide divider" id="s1">
+  <div class="div-num c1">1</div>
+  <div class="div-inner">
+    <div class="div-section">Section 1 of 5</div>
+    <h1 class="c1">Introduction &amp;<br>Problem Statement</h1>
+    <div class="div-presenter c1">Precious Chimperu</div>
+    <div class="div-role">Project background · Objectives · Research motivation</div>
+    <div class="div-tags"><span class="tag tv">Project Purpose</span><span class="tag tv">Objectives</span><span class="tag tv">Scope</span></div>
+  </div>
+</div>
+
+<!-- Precious A: Purpose -->
+<div class="slide" id="s2">
+  <div class="presenter"><div class="avatar bg1 c1">PC</div><div class="pname-badge">Precious Chimperu</div></div>
+  <div class="section-label">Project Purpose</div>
+  <h2>Why does this project exist?</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="card ar">
+        <h3 style="color:#fca5a5">The Problem</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#ef4444;margin-top:3px;flex-shrink:0">▸</span><p>Medical IoT devices are high-value, low-security targets in hospital networks</p></div>
+          <div class="row"><span style="color:#ef4444;margin-top:3px;flex-shrink:0">▸</span><p>A compromised infusion pump or heart monitor is a patient safety incident, not just a data breach</p></div>
+          <div class="row"><span style="color:#ef4444;margin-top:3px;flex-shrink:0">▸</span><p>No real-time ML-powered monitoring tool existed for this clinical IoMT domain</p></div>
+        </div>
+      </div>
+      <div class="card ag">
+        <h3 style="color:#6ee7b7">Our Solution</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#10b981;margin-top:3px;flex-shrink:0">▸</span><p>Train a LightGBM classifier on the CICIoMT2024 dataset (Wi-Fi + MQTT traffic)</p></div>
+          <div class="row"><span style="color:#10b981;margin-top:3px;flex-shrink:0">▸</span><p>Stream classified packets live via WebSocket to a SOC-grade React dashboard</p></div>
+          <div class="row"><span style="color:#10b981;margin-top:3px;flex-shrink:0">▸</span><p>Equip analysts with playbooks, risk scores, forensics, and geographic threat intelligence</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="cols2" style="gap:10px">
+        <div class="stat"><div class="val c1">6</div><div class="lbl">Attack classes</div></div>
+        <div class="stat"><div class="val" style="color:#10b981">44</div><div class="lbl">ML features</div></div>
+        <div class="stat"><div class="val" style="color:#f59e0b">4</div><div class="lbl">IoMT devices</div></div>
+        <div class="stat"><div class="val" style="color:#3b82f6">5</div><div class="lbl">Analyst roles</div></div>
+      </div>
+      <div class="card">
+        <h3>Target Users</h3>
+        <div class="stack" style="margin-top:8px">
+          <div class="row"><span class="tag tv" style="flex-shrink:0">CISO</span><p style="margin-top:2px">Executive security overview &amp; compliance reporting</p></div>
+          <div class="row"><span class="tag tb" style="flex-shrink:0">SOC Manager</span><p style="margin-top:2px">Operational alerts &amp; team coordination</p></div>
+          <div class="row"><span class="tag tg" style="flex-shrink:0">Threat Analyst</span><p style="margin-top:2px">Forensics, geo-intelligence &amp; heatmaps</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Precious B: Objectives -->
+<div class="slide" id="s3">
+  <div class="presenter"><div class="avatar bg1 c1">PC</div><div class="pname-badge">Precious Chimperu</div></div>
+  <div class="section-label">Objectives</div>
+  <h2>Initial vs Realised Objectives</h2>
+  <div class="cols2" style="gap:28px;align-items:start">
+    <div>
+      <p class="muted" style="text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px">What was planned</p>
+      <div style="gap:0;display:flex;flex-direction:column">
+        <div class="orow"><div class="oicon" style="background:rgba(99,102,241,.2);color:#818cf8">1</div><div><p class="hi">Train ML classifier on IoMT traffic</p><p>CICIoMT2024 — classify benign vs attack</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(99,102,241,.2);color:#818cf8">2</div><div><p class="hi">Real-time monitoring dashboard</p><p>React front-end with live WebSocket data</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(99,102,241,.2);color:#818cf8">3</div><div><p class="hi">Alert on detected anomalies</p><p>Visual alerts with severity classification</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(99,102,241,.2);color:#818cf8">4</div><div><p class="hi">Role-based access for SOC analysts</p><p>Different views per analyst role</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(99,102,241,.2);color:#818cf8">5</div><div><p class="hi">Exportable reports for management</p><p>Security summaries per role</p></div></div>
+      </div>
+    </div>
+    <div>
+      <p class="muted" style="text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px">What was delivered</p>
+      <div style="gap:0;display:flex;flex-direction:column">
+        <div class="orow"><div class="oicon" style="background:rgba(16,185,129,.2);color:#6ee7b7">✓</div><div><p class="hi">LightGBM — 99.4% accuracy, 6 classes</p><p>44 features, trained on CICIoMT2024</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(16,185,129,.2);color:#6ee7b7">✓</div><div><p class="hi">Full SOC dashboard — 12+ analyst tabs</p><p>Geo map, heatmap, topology, forensics added</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(16,185,129,.2);color:#6ee7b7">✓</div><div><p class="hi">Live alerts + SQLite persistence</p><p>Attack log history, CSV export, filter system</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(16,185,129,.2);color:#6ee7b7">✓</div><div><p class="hi">5 RBAC roles + MFA login</p><p>TOTP + optional SMS OTP via Twilio</p></div></div>
+        <div class="orow"><div class="oicon" style="background:rgba(245,158,11,.2);color:#fcd34d">+</div><div><p class="hi">4 reports + SHAP explainability</p><p>Beyond original scope — added as project matured</p></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER 2 · JUBILLEE ══ -->
+<div class="slide divider" id="s4">
+  <div class="div-num c2">2</div>
+  <div class="div-inner">
+    <div class="div-section">Section 2 of 5</div>
+    <h1 class="c2">Dataset &amp;<br>Machine Learning</h1>
+    <div class="div-presenter c2">Jubillee Maringe</div>
+    <div class="div-role">CICIoMT2024 · Feature engineering · LightGBM · Model evaluation</div>
+    <div class="div-tags"><span class="tag tg">Data Preparation</span><span class="tag tg">Model Training</span><span class="tag tg">SHAP Explainability</span></div>
+  </div>
+</div>
+
+<!-- Jubillee A: Dataset -->
+<div class="slide" id="s5">
+  <div class="presenter"><div class="avatar bg2 c2">JM</div><div class="pname-badge">Jubillee Maringe</div></div>
+  <div class="section-label">Dataset &amp; Feature Engineering</div>
+  <h2>CICIoMT2024 — From Raw Data to Model Input</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="card ag">
+        <h3 style="color:#6ee7b7">Dataset Overview</h3>
+        <div class="stack" style="margin-top:8px;gap:5px">
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span class="hi">Source</span><span>Canadian Institute for Cybersecurity</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span class="hi">Traffic type</span><span>Wi-Fi + MQTT protocol</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span class="hi">Records</span><span>600,000+ network flow rows</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px"><span class="hi">Format</span><span>Parquet (compressed columnar)</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>6 Attack Categories</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px">
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#ef4444;flex-shrink:0"></span><p style="color:#fca5a5">DDoS — HIGH</p></div>
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#f97316;flex-shrink:0"></span><p style="color:#fdba74">DoS — HIGH</p></div>
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#eab308;flex-shrink:0"></span><p style="color:#fde047">Recon — MEDIUM</p></div>
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#eab308;flex-shrink:0"></span><p style="color:#fde047">MQTT — MEDIUM</p></div>
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#dc2626;flex-shrink:0"></span><p style="color:#fca5a5">Spoofing — CRITICAL</p></div>
+          <div class="row" style="align-items:center"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0"></span><p style="color:#86efac">Benign — Normal</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card ab">
+        <h3 style="color:#93c5fd">Feature Engineering Steps</h3>
+        <div class="stack" style="margin-top:8px">
+          <div class="row"><span style="color:#3b82f6;margin-top:3px;flex-shrink:0">1.</span><p><span class="hi">Label normalisation</span> — stripped suffixes, mapped to 6 categories</p></div>
+          <div class="row"><span style="color:#3b82f6;margin-top:3px;flex-shrink:0">2.</span><p><span class="hi">Infinity / NaN handling</span> — replaced with column medians</p></div>
+          <div class="row"><span style="color:#3b82f6;margin-top:3px;flex-shrink:0">3.</span><p><span class="hi">Constant column removal</span> — dropped zero-variance features</p></div>
+          <div class="row"><span style="color:#3b82f6;margin-top:3px;flex-shrink:0">4.</span><p><span class="hi">Category sampling</span> — 5,000 rows per class for replay pool</p></div>
+          <div class="row"><span style="color:#3b82f6;margin-top:3px;flex-shrink:0">5.</span><p><span class="hi">Final feature set</span> — 44 flow-level network features retained</p></div>
+        </div>
+      </div>
+      <div class="card aa">
+        <h3 style="color:#fcd34d">Why 44 Features?</h3>
+        <p style="margin-top:5px">After removing constant columns and metadata, 44 statistically significant network flow features remained — including packet counts, flow duration, inter-arrival times, byte ratios, and TCP flag counts.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Jubillee B: Model -->
+<div class="slide" id="s6">
+  <div class="presenter"><div class="avatar bg2 c2">JM</div><div class="pname-badge">Jubillee Maringe</div></div>
+  <div class="section-label">Machine Learning</div>
+  <h2>LightGBM — Training &amp; Results</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="cols2" style="gap:10px">
+        <div class="stat"><div class="val" style="color:#34d399">99.4%</div><div class="lbl">Accuracy</div></div>
+        <div class="stat"><div class="val" style="color:#818cf8">44</div><div class="lbl">Features</div></div>
+        <div class="stat"><div class="val" style="color:#fb923c">6</div><div class="lbl">Classes</div></div>
+        <div class="stat"><div class="val" style="color:#60a5fa">&lt;1ms</div><div class="lbl">Inference</div></div>
+      </div>
+      <div class="card ag">
+        <h3 style="color:#6ee7b7">Why LightGBM?</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Gradient boosting on trees — handles high-dimensional tabular data natively</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Faster training than XGBoost at equivalent accuracy</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Native multi-class probability output needed for confidence scores</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>First-class SHAP support for per-prediction explainability</p></div>
+        </div>
+      </div>
+      <div class="card aa">
+        <h3 style="color:#fcd34d">Models Compared</h3>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">Random Forest</span><span style="color:#64748b">~81%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">XGBoost</span><span style="color:#64748b">~82%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#34d399;font-weight:700">LightGBM ✓ selected</span><span style="color:#34d399;font-weight:700">99.4%</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <h3>SHAP Explainability</h3>
+        <p style="margin-top:6px">Every prediction can be explained via <span class="mono">/api/explain/{"{idx}"}</span> — returning the top 10 features that drove the classification. Analysts understand <em style="color:#f1f5f9">why</em> a packet was flagged, not just <em style="color:#f1f5f9">that</em> it was flagged.</p>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+            <span style="color:#94a3b8;width:120px">Flow Duration</span>
+            <div style="flex:1;height:7px;background:#1e293b;border-radius:4px;overflow:hidden;margin-left:8px"><div style="width:88%;height:100%;background:#818cf8;border-radius:4px"></div></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+            <span style="color:#94a3b8;width:120px">Packet Length Mean</span>
+            <div style="flex:1;height:7px;background:#1e293b;border-radius:4px;overflow:hidden;margin-left:8px"><div style="width:72%;height:100%;background:#818cf8;border-radius:4px"></div></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+            <span style="color:#94a3b8;width:120px">Fwd IAT Total</span>
+            <div style="flex:1;height:7px;background:#1e293b;border-radius:4px;overflow:hidden;margin-left:8px"><div style="width:55%;height:100%;background:#818cf8;border-radius:4px"></div></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+            <span style="color:#94a3b8;width:120px">SYN Flag Count</span>
+            <div style="flex:1;height:7px;background:#1e293b;border-radius:4px;overflow:hidden;margin-left:8px"><div style="width:38%;height:100%;background:#818cf8;border-radius:4px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER 3 · TINASHE ══ -->
+<div class="slide divider" id="s7">
+  <div class="div-num c3">3</div>
+  <div class="div-inner">
+    <div class="div-section">Section 3 of 5</div>
+    <h1 class="c3">System Architecture<br>&amp; Backend</h1>
+    <div class="div-presenter c3">Tinashe Chidarikire</div>
+    <div class="div-role">FastAPI · WebSocket engine · SQLite · MFA · System integration</div>
+    <div class="div-tags"><span class="tag tb">FastAPI</span><span class="tag tb">WebSocket</span><span class="tag tb">REST API</span><span class="tag tb">SQLite</span></div>
+  </div>
+</div>
+
+<!-- Tinashe A: Architecture -->
+<div class="slide" id="s8">
+  <div class="presenter"><div class="avatar bg3 c3">TC</div><div class="pname-badge">Tinashe Chidarikire</div></div>
+  <div class="section-label">System Architecture</div>
+  <h2 style="margin-bottom:20px">How the entire system connects</h2>
+  <div class="stack" style="gap:7px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="abox" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.06)"><div class="atop" style="color:#a5b4fc">CICIoMT2024 Dataset</div>Wi-Fi + MQTT · 600k+ records</div>
+      <div class="aarrow">→</div>
+      <div class="abox" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.06)"><div class="atop" style="color:#a5b4fc">Feature Engineering</div>44 features · label mapping</div>
+      <div class="aarrow">→</div>
+      <div class="abox" style="border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.06)"><div class="atop" style="color:#a5b4fc">LightGBM Model</div>99.4% accuracy · joblib export</div>
+    </div>
+    <div style="text-align:center;color:#334155;font-size:14px">↓</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="abox" style="border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.06)"><div class="atop" style="color:#93c5fd">FastAPI Backend</div>Replay loop · classification · alerts DB</div>
+      <div class="aarrow">↔</div>
+      <div class="abox" style="flex:2;border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.06)"><div class="atop" style="color:#93c5fd">WebSocket /ws · 0.8s cadence</div>Weighted sampling · broadcast · watchdog auto-restart</div>
+      <div class="aarrow">↔</div>
+      <div class="abox" style="border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.06)"><div class="atop" style="color:#93c5fd">REST API</div>/api/alerts · /api/explain · /api/send-otp</div>
+    </div>
+    <div style="text-align:center;color:#334155;font-size:14px">↓</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="abox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><div class="atop" style="color:#6ee7b7">React Dashboard</div>Vite · Tailwind · Recharts</div>
+      <div class="aarrow">→</div>
+      <div class="abox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><div class="atop" style="color:#6ee7b7">12+ Analyst Tabs</div>Alerts · Risk · Forensics · Geo · Playbooks…</div>
+      <div class="aarrow">→</div>
+      <div class="abox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><div class="atop" style="color:#6ee7b7">MFA + Reports</div>TOTP · SMS OTP · 4 report types</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+    <span class="tag tv">Python 3.11</span><span class="tag tb">FastAPI + Uvicorn</span><span class="tag tg">React 18 + Vite</span><span class="tag ta">LightGBM · SHAP · Pandas</span><span class="tag tr">SQLite · Twilio</span>
+  </div>
+</div>
+
+<!-- Tinashe B: Backend -->
+<div class="slide" id="s9">
+  <div class="presenter"><div class="avatar bg3 c3">TC</div><div class="pname-badge">Tinashe Chidarikire</div></div>
+  <div class="section-label">Backend</div>
+  <h2>FastAPI + WebSocket Engine</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="card ab">
+        <h3 style="color:#93c5fd">Live Replay Loop</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#3b82f6;flex-shrink:0">▸</span><p>Weighted category pool: 50% Benign, rest split across attack types</p></div>
+          <div class="row"><span style="color:#3b82f6;flex-shrink:0">▸</span><p>Runs model inference every 0.8s, broadcasts JSON to all WebSocket clients</p></div>
+          <div class="row"><span style="color:#3b82f6;flex-shrink:0">▸</span><p>Watchdog task auto-restarts if the loop crashes — dashboard never goes dark</p></div>
+          <div class="row"><span style="color:#3b82f6;flex-shrink:0">▸</span><p>Attack events persisted to SQLite <span class="mono">alerts.db</span> for historical queries</p></div>
+        </div>
+      </div>
+      <div class="card ag">
+        <h3 style="color:#6ee7b7">MFA Authentication</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>TOTP (Google Authenticator) — time-based 6-digit codes</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Optional SMS OTP via Twilio — configured in backend/.env</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>5 RBAC roles — tab visibility enforced per role in ROLE_DEFS</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card aa">
+        <h3 style="color:#fcd34d">WebSocket Payload (per packet)</h3>
+        <div style="margin-top:8px;font-size:11px;font-family:monospace;color:#94a3b8;line-height:1.8;background:#080d18;padding:10px;border-radius:8px">
+          <span style="color:#818cf8">"prediction"</span>: <span style="color:#34d399">"DDoS"</span>,<br>
+          <span style="color:#818cf8">"confidence"</span>: <span style="color:#fb923c">94.2</span>,<br>
+          <span style="color:#818cf8">"severity"</span>: <span style="color:#34d399">"high"</span>,<br>
+          <span style="color:#818cf8">"device"</span>: <span style="color:#34d399">"Infusion Pump"</span>,<br>
+          <span style="color:#818cf8">"src_ip"</span>: <span style="color:#34d399">"45.81.23.107"</span>,<br>
+          <span style="color:#818cf8">"anomaly_score"</span>: <span style="color:#fb923c">0.0581</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>REST Endpoints</h3>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;font-size:11.5px">
+          <div class="row"><span class="mono" style="width:160px;flex-shrink:0">GET /api/status</span><span style="color:#64748b">Running state, packet counts</span></div>
+          <div class="row"><span class="mono" style="width:160px;flex-shrink:0">GET /api/alerts</span><span style="color:#64748b">Paginated SQLite attack history</span></div>
+          <div class="row"><span class="mono" style="width:160px;flex-shrink:0">GET /api/explain/{"{idx}"}</span><span style="color:#64748b">SHAP top-10 features</span></div>
+          <div class="row"><span class="mono" style="width:160px;flex-shrink:0">POST /api/send-otp</span><span style="color:#64748b">Twilio SMS OTP delivery</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER 4 · PRIMROSE ══ -->
+<div class="slide divider" id="s10">
+  <div class="div-num c4">4</div>
+  <div class="div-inner">
+    <div class="div-section">Section 4 of 5</div>
+    <h1 class="c4">Dashboard &amp;<br>Analyst Features</h1>
+    <div class="div-presenter c4">Primrose Tivatyi</div>
+    <div class="div-role">React dashboard · 12+ tabs · Playbooks · Risk scoring · Reports</div>
+    <div class="div-tags"><span class="tag tr">Live Alerts</span><span class="tag tr">Playbooks</span><span class="tag tr">Risk Scoring</span><span class="tag tr">Reports</span></div>
+  </div>
+</div>
+
+<!-- Primrose A: Features -->
+<div class="slide" id="s11">
+  <div class="presenter"><div class="avatar bg4 c4">PT</div><div class="pname-badge">Primrose Tivatyi</div></div>
+  <div class="section-label">Dashboard</div>
+  <h2>12+ Analyst Tabs — Role-Gated Features</h2>
+  <div class="cols3" style="gap:12px">
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">⚡</div><h3>Live Alerts &amp; MITRE</h3><p>Real-time feed with severity badges, IP blocking, device isolation, false positive marking, MITRE ATT&amp;CK mapping.</p></div>
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">🗺️</div><h3>Geo + Heatmap Intel</h3><p>Attack sources on SVG world map. Frequency heatmap by hour × day across 7-day rolling window.</p></div>
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">🔗</div><h3>Network Topology</h3><p>Force-directed graph of IoMT connections. Isolated devices in red. Attack flows animated live.</p></div>
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">📋</div><h3>Incident Playbooks</h3><p>MITRE ATT&amp;CK mapped steps. 3-state tracking, SLA timer, analyst notes, role assignments.</p></div>
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">🛡️</div><h3>Device Risk Scoring</h3><p>Live risk scores per device. CVE tracking, patch checklist (score drops on apply), isolation, playbook launch.</p></div>
+    <div class="card al"><div style="font-size:18px;margin-bottom:5px">🔬</div><h3>Forensic Analysis</h3><p>Packet capture viewer, protocol breakdown, timeline of events, CSV upload for offline analysis.</p></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+    <span class="tag tv">Attack Logs (SQLite)</span><span class="tag tv">SOC Team Management</span><span class="tag tv">Executive Overview</span><span class="tag tv">4 Professional Reports</span>
+  </div>
+</div>
+
+<!-- Primrose B: Reports + Risk -->
+<div class="slide" id="s12">
+  <div class="presenter"><div class="avatar bg4 c4">PT</div><div class="pname-badge">Primrose Tivatyi</div></div>
+  <div class="section-label">Reports &amp; Risk Management</div>
+  <h2>Reports, Risk Scoring &amp; Patch Management</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="card" style="border-left:3px solid #f472b6">
+        <h3>4 Role-Specific Reports</h3>
+        <div class="stack" style="margin-top:8px;gap:6px">
+          <div class="row"><span class="tag tv" style="flex-shrink:0">CISO</span><p>Executive summary, threat landscape, compliance posture</p></div>
+          <div class="row"><span class="tag tb" style="flex-shrink:0">Manager</span><p>Operational metrics, team performance, SLA status</p></div>
+          <div class="row"><span class="tag tg" style="flex-shrink:0">Analyst</span><p>Technical IOCs, MITRE mapping, forensic timeline</p></div>
+          <div class="row"><span class="tag ta" style="flex-shrink:0">IR Team</span><p>Incident response actions, device status, containment log</p></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Report Design</h3>
+        <p style="margin-top:5px">Generated as styled HTML opened in a new window — dark header, severity gradient bar, stat cards, monospace fonts. Fully printable to PDF.</p>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card ag">
+        <h3 style="color:#6ee7b7">Live Risk Scoring</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Base score per device from CVEs, OS age, patch count, risk factors</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Score boosts from live WebSocket alerts: +8 critical, +3 high, +1 medium</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Score drops when patches applied — specific reduction per patch item</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">▸</span><p>Ring gauge colour and severity badge update instantly on every change</p></div>
+        </div>
+      </div>
+      <div class="card aa">
+        <h3 style="color:#fcd34d">Action Buttons per Device</h3>
+        <div class="cols2" style="gap:7px;margin-top:8px">
+          <div style="padding:7px;background:#1e293b;border-radius:8px;text-align:center;font-size:11.5px;color:#fca5a5">🔒 Isolate Device</div>
+          <div style="padding:7px;background:#1e293b;border-radius:8px;text-align:center;font-size:11.5px;color:#93c5fd">📋 Open Playbook</div>
+          <div style="padding:7px;background:#1e293b;border-radius:8px;text-align:center;font-size:11.5px;color:#fcd34d">🔔 View Alerts</div>
+          <div style="padding:7px;background:#1e293b;border-radius:8px;text-align:center;font-size:11.5px;color:#94a3b8">📊 Attack Logs</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER 5 · EVELYN ══ -->
+<div class="slide divider" id="s13">
+  <div class="div-num c5">5</div>
+  <div class="div-inner">
+    <div class="div-section">Section 5 of 5</div>
+    <h1 class="c5">Timeline, Blockers<br>&amp; Reflection</h1>
+    <div class="div-presenter c5">Evelyn Chipangura</div>
+    <div class="div-role">Gantt chart · Execution challenges · Learning outcomes · Conclusion</div>
+    <div class="div-tags"><span class="tag ta">Project Timeline</span><span class="tag ta">Blockers</span><span class="tag ta">Reflection</span></div>
+  </div>
+</div>
+
+<!-- Evelyn A: Gantt (Jan 28 – May 12) -->
+<div class="slide" id="s14">
+  <div class="presenter"><div class="avatar bg5 c5">EC</div><div class="pname-badge">Evelyn Chipangura</div></div>
+  <div class="section-label">Project Timeline</div>
+  <h2 style="margin-bottom:4px">Gantt Chart — 15-Week Journey</h2>
+  <p class="muted" style="margin-bottom:16px">28 January 2026 → 12 May 2026</p>
+
+  <!-- Month headers: 5 months, widths proportional to days in each month within range -->
+  <!-- Jan:4d(3.8%) Feb:28d(26.9%) Mar:31d(29.8%) Apr:30d(28.8%) May:12d(11.5%) -->
+  <div style="display:flex;padding-left:130px;margin-bottom:4px;font-size:10px;color:#334155">
+    <div style="width:3.8%;text-align:center">Jan</div>
+    <div style="width:26.9%;text-align:center">Feb</div>
+    <div style="width:29.8%;text-align:center">Mar</div>
+    <div style="width:28.8%;text-align:center">Apr</div>
+    <div style="width:11.5%;text-align:center">May</div>
+  </div>
+  <!-- separator lines -->
+  <div style="display:flex;padding-left:130px;margin-bottom:8px">
+    <div style="width:3.8%;border-right:1px solid #1e293b;height:4px"></div>
+    <div style="width:26.9%;border-right:1px solid #1e293b;height:4px"></div>
+    <div style="width:29.8%;border-right:1px solid #1e293b;height:4px"></div>
+    <div style="width:28.8%;border-right:1px solid #1e293b;height:4px"></div>
+    <div style="width:11.5%;height:4px"></div>
+  </div>
+
+  <!-- Bars: offset & width as % of 104 total days (Jan28=0, May12=100) -->
+  <div class="stack" style="gap:7px">
+    <!-- Literature Review: Jan 28 – Feb 11 (0% – 13%) -->
+    <div class="grow"><span class="glabel">Literature Review</span><div class="gtrack"><div class="gbar" style="left:0%;width:13%;background:#6366f1"></div></div></div>
+    <!-- Dataset Prep: Feb 1 – Feb 25 (4% – 27%) -->
+    <div class="grow"><span class="glabel">Dataset Prep</span><div class="gtrack"><div class="gbar" style="left:4%;width:22%;background:#8b5cf6"></div></div></div>
+    <!-- Model Training: Feb 14 – Mar 20 (17% – 51%) -->
+    <div class="grow"><span class="glabel">Model Training</span><div class="gtrack"><div class="gbar" style="left:17%;width:33%;background:#a855f7"></div></div></div>
+    <!-- Model Evaluation: Mar 18 – Apr 2 (49% – 64%) -->
+    <div class="grow"><span class="glabel">Model Evaluation</span><div class="gtrack"><div class="gbar" style="left:49%;width:14%;background:#c084fc"></div></div></div>
+    <!-- Backend API: Mar 1 – Apr 5 (32% – 67%) -->
+    <div class="grow"><span class="glabel">Backend API</span><div class="gtrack"><div class="gbar" style="left:32%;width:34%;background:#3b82f6"></div></div></div>
+    <!-- WebSocket Engine: Mar 25 – Apr 12 (56% – 74%) -->
+    <div class="grow"><span class="glabel">WebSocket Engine</span><div class="gtrack"><div class="gbar" style="left:56%;width:17%;background:#60a5fa"></div></div></div>
+    <!-- React Dashboard: Apr 1 – May 5 (63% – 93%) -->
+    <div class="grow"><span class="glabel">React Dashboard</span><div class="gtrack"><div class="gbar" style="left:63%;width:29%;background:#10b981"></div></div></div>
+    <!-- MFA + Auth: Apr 8 – Apr 22 (70% – 83%) -->
+    <div class="grow"><span class="glabel">MFA + Auth</span><div class="gtrack"><div class="gbar" style="left:70%;width:13%;background:#34d399"></div></div></div>
+    <!-- Playbooks + Risk: Apr 14 – May 8 (75% – 95%) -->
+    <div class="grow"><span class="glabel">Playbooks + Risk</span><div class="gtrack"><div class="gbar" style="left:75%;width:20%;background:#f59e0b"></div></div></div>
+    <!-- Testing + Polish: May 1 – May 12 (88% – 100%) -->
+    <div class="grow"><span class="glabel">Testing + Polish</span><div class="gtrack"><div class="gbar" style="left:88%;width:12%;background:#ef4444"></div></div></div>
+  </div>
+
+  <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:#6366f1"></div><span class="muted">Research &amp; Data</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:#3b82f6"></div><span class="muted">Backend</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:#10b981"></div><span class="muted">Frontend</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:#f59e0b"></div><span class="muted">Advanced Features</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:#ef4444"></div><span class="muted">Testing</span></div>
+  </div>
+</div>
+
+<!-- Evelyn B: Blockers -->
+<div class="slide" id="s15">
+  <div class="presenter"><div class="avatar bg5 c5">EC</div><div class="pname-badge">Evelyn Chipangura</div></div>
+  <div class="section-label">Execution Challenges</div>
+  <h2>Blockers &amp; How We Resolved Them</h2>
+  <table class="btbl">
+    <thead><tr><th style="width:27%">Blocker</th><th style="width:33%">Impact</th><th style="width:40%">Resolution</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag tr" style="margin-bottom:5px">Model Bias</span><br>LightGBM predicted DDoS for ~80% of all traffic</td><td>Dashboard showed only DDoS — no variety, unrealistic simulation</td><td style="color:#6ee7b7">Weighted category sampling + ground-truth label forcing with real model confidence scores</td></tr>
+      <tr><td><span class="tag ta" style="margin-bottom:5px">React Infinite Loop</span><br>Attack Logs tab blinked continuously on screen</td><td>Component defined inside render IIFE — new identity on every parent re-render</td><td style="color:#6ee7b7">Removed sub-component; lifted all state to top-level; rendered inline JSX only</td></tr>
+      <tr><td><span class="tag tr" style="margin-bottom:5px">Build Crash</span><br>Escaped quotes inside JS template literal</td><td>App failed to compile — all reports inaccessible</td><td style="color:#6ee7b7">Extracted object literal as <span class="mono">const deviceIPMap</span> before the template string</td></tr>
+      <tr><td><span class="tag ta" style="margin-bottom:5px">React Set Bug</span><br>Patch checkboxes clicked but score never updated</td><td>Patch management appeared completely broken</td><td style="color:#6ee7b7">Replaced <span class="mono">Set</span> objects in state with plain <span class="mono">{"{ [patchId]: boolean }"}</span> objects</td></tr>
+      <tr><td><span class="tag tv" style="margin-bottom:5px">Feature Mismatch</span><br>"56 features" shown — model actually had 44</td><td>Wrong data across all 4 reports and CSV upload UI</td><td style="color:#6ee7b7">Verified via Python, global find-and-replace across entire codebase</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Evelyn C: Reflection + Conclusion -->
+<div class="slide" id="s16">
+  <div class="presenter"><div class="avatar bg5 c5">EC</div><div class="pname-badge">Evelyn Chipangura</div></div>
+  <div class="section-label">Reflection &amp; Conclusion</div>
+  <h2 style="margin-bottom:16px">What We Learned &amp; What We Achieved</h2>
+  <div class="cols2" style="align-items:start">
+    <div class="stack">
+      <div class="card aa">
+        <h3 style="color:#fcd34d">Key Learning Outcomes</h3>
+        <div class="stack" style="margin-top:7px">
+          <div class="row"><span style="color:#f59e0b;flex-shrink:0">▸</span><p><span class="hi">End-to-end ML deployment</span> — training is 20% of the work; integration is the real challenge</p></div>
+          <div class="row"><span style="color:#f59e0b;flex-shrink:0">▸</span><p><span class="hi">WebSocket architecture</span> — async broadcast, watchdog patterns, stateful connections</p></div>
+          <div class="row"><span style="color:#f59e0b;flex-shrink:0">▸</span><p><span class="hi">Cybersecurity domain knowledge</span> — MITRE ATT&amp;CK, HIPAA, CVE/CVSS scoring, SOC workflows</p></div>
+          <div class="row"><span style="color:#f59e0b;flex-shrink:0">▸</span><p><span class="hi">React reconciliation</span> — component identity, state lifting, re-render debugging</p></div>
+          <div class="row"><span style="color:#f59e0b;flex-shrink:0">▸</span><p><span class="hi">Systematic debugging</span> — isolating root causes rather than working around problems</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="cols2" style="gap:10px">
+        <div class="stat"><div class="val" style="color:#34d399">99.4%</div><div class="lbl">Model Accuracy</div></div>
+        <div class="stat"><div class="val" style="color:#818cf8">12+</div><div class="lbl">Dashboard Tabs</div></div>
+        <div class="stat"><div class="val" style="color:#f59e0b">5</div><div class="lbl">Analyst Roles</div></div>
+        <div class="stat"><div class="val" style="color:#60a5fa">15wk</div><div class="lbl">Duration</div></div>
+      </div>
+      <div class="card ag">
+        <h3 style="color:#6ee7b7;margin-bottom:7px">Delivered beyond original scope</h3>
+        <div class="stack" style="gap:4px">
+          <div class="row"><span style="color:#10b981;flex-shrink:0">+</span><p>SHAP prediction explainability endpoint</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">+</span><p>SMS MFA via Twilio</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">+</span><p>MITRE ATT&amp;CK playbook mapping</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">+</span><p>Live patch management with real score impact</p></div>
+          <div class="row"><span style="color:#10b981;flex-shrink:0">+</span><p>Geographic attack intelligence overlay</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+    <span class="tag tg">✓ All initial objectives met</span>
+    <span class="tag tv">+ 5 features beyond scope</span>
+    <span class="tag ta">28 Jan – 12 May 2026</span>
+    <span class="tag tb">Precious · Jubillee · Tinashe · Primrose · Evelyn</span>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- ══ Navigation ══ -->
+<div class="nav">
+  <button onclick="go(-1)" title="Previous (←)">&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <span class="counter" id="ctr">1 / 17</span>
+  <button onclick="go(1)" title="Next (→)">&#8594;</button>
+</div>
+
+<script>
+(function(){
+  var slides  = document.querySelectorAll('.slide');
+  var dotsEl  = document.getElementById('dots');
+  var ctrEl   = document.getElementById('ctr');
+  var cur     = 0;
+  var total   = slides.length;
+  var divSet  = {1:1,4:1,7:1,10:1,13:1};
+
+  // Build dots
+  for(var i=0;i<total;i++){
+    var d = document.createElement('div');
+    d.className = 'dot' + (i===0?' on':'') + (divSet[i]?' div-dot':'');
+    d.setAttribute('data-i', i);
+    d.addEventListener('click', (function(idx){return function(){goTo(idx);};})(i));
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n){
+    slides[cur].classList.remove('active');
+    dotsEl.children[cur].classList.remove('on');
+    cur = ((n % total) + total) % total;
+    slides[cur].classList.add('active');
+    dotsEl.children[cur].classList.add('on');
+    ctrEl.textContent = (cur+1) + ' / ' + total;
+  }
+
+  function go(d){ goTo(cur + d); }
+  window.go = go;
+
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' '){e.preventDefault();go(1);}
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();go(-1);}
+  });
+})();
+</script>
+</body>
+</html>

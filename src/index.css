@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #020617; }
+button { border: none; background: none; cursor: pointer; font-family: inherit; }
+select { font-family: inherit; }
+input { font-family: inherit; }
