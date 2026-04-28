@@ -19,6 +19,8 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
       - key: VITE_BACKEND_URL
         sync: false
     routes:
