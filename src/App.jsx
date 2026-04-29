@@ -2528,8 +2528,8 @@ ${[
             </span>
             {connected && (
               liveRunning
-                ? <button onClick={stopLive} className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-medium hover:bg-amber-500/30">Stop</button>
-                : <button onClick={() => startLive(0.8)} className="ml-1 px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-xs font-medium hover:bg-cyan-500/30">Stream</button>
+                ? <button onClick={stopLive} className="ml-1 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-medium hover:bg-red-500/30">■ Stop Stream</button>
+                : <button onClick={() => startLive(0.8)} className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30">▶ Resume Stream</button>
             )}
           </div>
 
