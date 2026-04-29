@@ -978,12 +978,49 @@ export default function IoMTDashboard() {
     return { ok: true, user, mfaEnabled, phone: livePhone };
   };
 
+  // Heartbeat helpers — write/clear presence in localStorage so other tabs see who's online
+  const writeHeartbeat = useCallback((username) => {
+    try { localStorage.setItem(`iomt_hb_${username}`, Date.now().toString()); } catch {}
+  }, []);
+  const clearHeartbeat = useCallback((username) => {
+    try { localStorage.removeItem(`iomt_hb_${username}`); } catch {}
+  }, []);
+  const getOnlineUsernames = useCallback(() => {
+    const cutoff = Date.now() - 60000; // 60 s window
+    const online = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('iomt_hb_')) {
+          const ts = parseInt(localStorage.getItem(key) || '0', 10);
+          if (ts > cutoff) online.push(key.replace('iomt_hb_', ''));
+        }
+      }
+    } catch {}
+    return online;
+  }, []);
+
   // Set default tab based on role when user logs in
   const handleLogin = (user) => {
     setCurrentUser(user);
     try { localStorage.setItem('iomt_user', JSON.stringify(user)); } catch {}
+    writeHeartbeat(user.username);
     setActiveTab(user.role === 'admin' ? 'admin_panel' : 'exec');
   };
+
+  // Heartbeat interval + online presence state
+  const [onlineUsernames, setOnlineUsernames] = useState(() => getOnlineUsernames());
+  useEffect(() => {
+    if (!currentUser) return;
+    writeHeartbeat(currentUser.username);
+    const hbInterval = setInterval(() => {
+      writeHeartbeat(currentUser.username);
+      setOnlineUsernames(getOnlineUsernames());
+    }, 30000);
+    // Poll every 15 s so we pick up other tabs quickly
+    const pollInterval = setInterval(() => setOnlineUsernames(getOnlineUsernames()), 15000);
+    return () => { clearInterval(hbInterval); clearInterval(pollInterval); };
+  }, [currentUser, writeHeartbeat, getOnlineUsernames]);
 
   // Fetch attack logs from backend SQLite
   const fetchAttackLogs = useCallback((limit) => {
@@ -2592,7 +2629,7 @@ ${[
           </button>
 
           {/* Sign Out */}
-          <button onClick={() => { setCurrentUser(null); localStorage.removeItem('iomt_user'); }}
+          <button onClick={() => { clearHeartbeat(currentUser.username); setCurrentUser(null); localStorage.removeItem('iomt_user'); }}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700/50 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400 text-slate-400 text-xs transition-colors">
             <Lock className="w-3 h-3" />Sign Out
           </button>
@@ -5470,7 +5507,7 @@ ${[
                   {SOC_TEAM.map((member, idx) => {
                     const userDef  = DEMO_USERS.find(u => u.username === member.username);
                     const roleDef  = userDef ? ROLE_DEFS[userDef.role] : null;
-                    const isOnline = member.username === currentUser?.username;
+                    const isOnline = onlineUsernames.includes(member.username);
                     const tabLabels = {
                       exec:'Overview', alerts:'Alerts & MITRE', playbook:'Playbooks', risk:'Risk Score',
                       forensics:'Forensics', geomap:'Geo Map', heatmap:'Heatmap', topology:'Topology',
@@ -5997,7 +6034,7 @@ ${[
                           <p className="text-sm font-bold text-slate-200">Registered Accounts</p>
                           <p className="text-xs text-slate-500 mt-0.5">Manage credentials, access, and account status</p>
                         </div>
-                        <button onClick={()=>{setCurrentUser(null);localStorage.removeItem('iomt_user');setActiveTab('exec');}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors">
+                        <button onClick={()=>{clearHeartbeat(currentUser.username);setCurrentUser(null);localStorage.removeItem('iomt_user');setActiveTab('exec');}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors">
                           <LogOut className="w-3 h-3"/>Sign Out
                         </button>
                       </div>
