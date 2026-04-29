@@ -813,6 +813,31 @@ export default function IoMTDashboard() {
       mitre:        alert.mitre,
     };
     setAlerts(prev => [newAlert, ...prev.slice(0, 49)]);
+
+    // Topology attack path
+    if (newAlert.severity === 'critical' || newAlert.severity === 'high') {
+      const nodeKey = newAlert.device.toLowerCase().replace(' ', '');
+      setActiveAttackPath({ from: 'gateway', to: nodeKey });
+      setTopologyNodes(prev => prev.map(n =>
+        n.device === newAlert.device ? { ...n, status: 'attack' } : n
+      ));
+      setTimeout(() => {
+        setActiveAttackPath(null);
+        setTopologyNodes(prev => prev.map(n =>
+          n.device === newAlert.device ? { ...n, status: 'warning' } : n
+        ));
+      }, 5000);
+      pushToast(`${newAlert.severity.toUpperCase()}: ${newAlert.type} on ${newAlert.device}`, newAlert.severity);
+    }
+
+    // Auto-response
+    if (autoResponse.critical && newAlert.severity === 'critical') {
+      handleQuickAction('block', newAlert, true);
+    } else if (autoResponse.high && newAlert.severity === 'high') {
+      handleQuickAction('block', newAlert, true);
+    }
+
+    sendNotification(newAlert);
   };
 
   // Stable wrappers — never change identity, so the hook never re-subscribes
@@ -1006,33 +1031,8 @@ export default function IoMTDashboard() {
     });
     setDeviceStatus(initialDevices);
 
-    // Initial alerts
-    setAlerts([
-      { 
-        id: 1, severity: 'critical', device: 'Infusion Pump', 
-        message: 'Unusual packet burst detected - potential DDoS', 
-        time: '2 min ago', type: 'DDoS', status: 'active',
-        sourceIP: '192.168.45.123', destIP: '192.168.1.50',
-        packets: 15420, bytes: '2.3 MB', port: 443,
-        confidence: 94.2, timestamp: new Date(Date.now() - 120000)
-      },
-      { 
-        id: 2, severity: 'high', device: 'Heart Monitor', 
-        message: 'Potential MITM attack - ARP spoofing detected', 
-        time: '5 min ago', type: 'MITM', status: 'active',
-        sourceIP: '192.168.78.45', destIP: '192.168.1.22',
-        packets: 3240, bytes: '456 KB', port: 80,
-        confidence: 87.8, timestamp: new Date(Date.now() - 300000)
-      },
-      { 
-        id: 3, severity: 'medium', device: 'ECG Monitor', 
-        message: 'Abnormal traffic signature - possible reconnaissance', 
-        time: '12 min ago', type: 'Recon', status: 'active',
-        sourceIP: '192.168.92.18', destIP: '192.168.1.35',
-        packets: 890, bytes: '124 KB', port: 22,
-        confidence: 72.5, timestamp: new Date(Date.now() - 720000)
-      },
-    ]);
+    // Alerts come from live WebSocket only — start empty
+    setAlerts([]);
 
     // Initial threat intel
     setThreatIntel([
@@ -1072,59 +1072,7 @@ export default function IoMTDashboard() {
         setThreatIntel(prev => [newThreat, ...prev.slice(0, 19)]);
       }
 
-      // Random new alert
-      if (Math.random() > 0.92) {
-        const severity = ['critical', 'high', 'medium', 'low'][Math.floor(Math.random() * 4)];
-        const device = devices[Math.floor(Math.random() * devices.length)];
-        const type = attackTypes[Math.floor(Math.random() * attackTypes.length)];
-        const newAlert = {
-          id: Date.now(),
-          severity,
-          device,
-          message: `${type} pattern detected on ${device}`,
-          time: 'Just now',
-          type,
-          status: 'active',
-          sourceIP: generateIP(),
-          destIP: generateIP(),
-          packets: Math.floor(Math.random() * 5000) + 100,
-          bytes: `${(Math.random() * 500).toFixed(0)} KB`,
-          port: [22, 80, 443, 8080, 3389][Math.floor(Math.random() * 5)],
-          confidence: Math.random() * 30 + 65,
-          timestamp: new Date(),
-        };
-
-        // Send notifications
-        sendNotification(newAlert);
-
-        // Update topology with attack path
-        if (severity === 'critical' || severity === 'high') {
-          setActiveAttackPath({ from: 'gateway', to: device.toLowerCase().replace(' ', '') });
-          setTopologyNodes(prev => prev.map(n => 
-            n.device === device ? { ...n, status: 'attack' } : n
-          ));
-          setTimeout(() => {
-            setActiveAttackPath(null);
-            setTopologyNodes(prev => prev.map(n => 
-              n.device === device ? { ...n, status: 'warning' } : n
-            ));
-          }, 5000);
-        }
-
-        // Auto-response
-        if (autoResponse.critical && severity === 'critical') {
-          handleQuickAction('block', newAlert, true);
-          newAlert.status = 'mitigated';
-        } else if (autoResponse.high && severity === 'high') {
-          handleQuickAction('block', newAlert, true);
-          newAlert.status = 'mitigated';
-        }
-
-        if (severity === 'critical' || severity === 'high') {
-          pushToast(`${severity.toUpperCase()}: ${newAlert.type} on ${device}`, severity);
-        }
-        setAlerts(prev => [newAlert, ...prev.slice(0, 19)]);
-      }
+      // Alerts are driven by live WebSocket (onAlertRef) — no random generation here
     }, refreshRate);
     return () => clearInterval(interval);
   }, [isLive, autoResponse, notificationSettings, refreshRate]);
