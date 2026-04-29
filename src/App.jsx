@@ -732,7 +732,9 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
 }
 
 export default function IoMTDashboard() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { const s = localStorage.getItem('iomt_user'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [isLive, setIsLive] = useState(true);
   const [trafficHistory, setTrafficHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -979,6 +981,7 @@ export default function IoMTDashboard() {
   // Set default tab based on role when user logs in
   const handleLogin = (user) => {
     setCurrentUser(user);
+    try { localStorage.setItem('iomt_user', JSON.stringify(user)); } catch {}
     setActiveTab(user.role === 'admin' ? 'admin_panel' : 'exec');
   };
 
@@ -2591,7 +2594,7 @@ ${[
           </button>
 
           {/* Sign Out */}
-          <button onClick={() => setCurrentUser(null)}
+          <button onClick={() => { setCurrentUser(null); localStorage.removeItem('iomt_user'); }}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700/50 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400 text-slate-400 text-xs transition-colors">
             <Lock className="w-3 h-3" />Sign Out
           </button>
@@ -5945,7 +5948,7 @@ ${[
                           <p className="text-sm font-bold text-slate-200">Registered Accounts</p>
                           <p className="text-xs text-slate-500 mt-0.5">Manage credentials, access, and account status</p>
                         </div>
-                        <button onClick={()=>{setCurrentUser(null);setActiveTab('exec');}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors">
+                        <button onClick={()=>{setCurrentUser(null);localStorage.removeItem('iomt_user');setActiveTab('exec');}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors">
                           <LogOut className="w-3 h-3"/>Sign Out
                         </button>
                       </div>
