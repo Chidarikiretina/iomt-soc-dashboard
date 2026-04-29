@@ -3491,14 +3491,15 @@ ${[
               // ── Live alert enrichment from WebSocket stream ──
               const liveDeviceAlerts = {};
               alerts.forEach(a => {
-                if (!a.device || !a.is_attack) return;
+                if (!a.device || a.status === 'fp' || !a.type || a.type === 'Benign') return;
                 if (!liveDeviceAlerts[a.device]) liveDeviceAlerts[a.device] = { count:0, critical:0, high:0, medium:0, types:{} };
                 const la = liveDeviceAlerts[a.device];
                 la.count++;
                 if (a.severity==='critical') la.critical++;
                 else if (a.severity==='high') la.high++;
                 else if (a.severity==='medium') la.medium++;
-                if (a.prediction) la.types[a.prediction] = (la.types[a.prediction]||0)+1;
+                const t = a.type || a.prediction;
+                if (t) la.types[t] = (la.types[t]||0)+1;
               });
 
               // Score = base − patch reductions + live attack boost, clamped 1–100
