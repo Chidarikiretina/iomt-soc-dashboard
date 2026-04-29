@@ -16,11 +16,13 @@ services:
   - type: web
     name: iomt-soc-frontend
     runtime: static
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
         value: 20.11.0
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=512
       - key: VITE_BACKEND_URL
         sync: false
     routes:
