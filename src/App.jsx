@@ -1031,14 +1031,16 @@ export default function IoMTDashboard() {
   const [csvLoading, setCsvLoading]     = useState(false);
   const [csvDragOver, setCsvDragOver]   = useState(false);
 
-  const attackDistribution = [
-    { name: 'DDoS', value: 35, color: '#ef4444' },
-    { name: 'MITM', value: 20, color: '#f97316' },
-    { name: 'Spoofing', value: 15, color: '#eab308' },
-    { name: 'Injection', value: 10, color: '#8b5cf6' },
-    { name: 'Recon', value: 8, color: '#3b82f6' },
-    { name: 'Benign', value: 12, color: '#22c55e' },
-  ];
+  // Attack distribution — computed live from WebSocket alerts
+  const ATTACK_COLORS = { DDoS:'#ef4444', DoS:'#f97316', Spoofing:'#eab308', MQTT:'#8b5cf6', Recon:'#3b82f6', Benign:'#22c55e' };
+  const attackDistribution = (() => {
+    const counts = {};
+    alerts.forEach(a => { if (a.type) counts[a.type] = (counts[a.type]||0)+1; });
+    const total = Object.values(counts).reduce((s,v)=>s+v,0) || 1;
+    return Object.entries(counts).map(([name,val])=>({
+      name, value: Math.round(val/total*100), color: ATTACK_COLORS[name]||'#64748b'
+    }));
+  })();
 
   // Initialize data
   useEffect(() => {
@@ -2797,8 +2799,15 @@ ${[
               const critCount  = alerts.filter(a=>a.severity==='critical'&&a.status==='active').length;
               const highCount  = alerts.filter(a=>a.severity==='high'&&a.status==='active').length;
               const resolvedCount = alerts.filter(a=>a.status==='resolved'||a.status==='mitigated').length;
-              const mttd = (3.8 + Math.random()*1.2).toFixed(1);
-              const mttr = (8.2 + Math.random()*2.4).toFixed(1);
+              // MTTD: avg gap between consecutive alert timestamps (seconds → minutes)
+              const alertTimes = alerts.map(a=>a.timestamp?.getTime()).filter(Boolean).sort((a,b)=>a-b);
+              const gaps = alertTimes.slice(1).map((t,i)=>(t-alertTimes[i])/60000);
+              const mttd = gaps.length ? (gaps.reduce((s,v)=>s+v,0)/gaps.length).toFixed(1) : '—';
+              // MTTR: avg time from alert creation to resolved/mitigated
+              const resolvedAlerts = alerts.filter(a=>a.status==='resolved'||a.status==='mitigated');
+              const mttr = resolvedAlerts.length
+                ? (resolvedAlerts.reduce((s,a)=>s+((Date.now()-a.timestamp?.getTime())||0),0)/resolvedAlerts.length/60000).toFixed(1)
+                : '—';
               const grcAvg = Math.round(grcFrameworks.reduce((s,f)=>s+f.score,0)/grcFrameworks.length);
               const threatLevel = critCount >= 3 ? 'CRITICAL' : critCount >= 1 ? 'ELEVATED' : highCount >= 2 ? 'GUARDED' : 'LOW';
               const threatLevelColor = {CRITICAL:'#ef4444',ELEVATED:'#f97316',GUARDED:'#eab308',LOW:'#22c55e'}[threatLevel];
