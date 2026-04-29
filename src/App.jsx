@@ -5,7 +5,7 @@ import { geoEquirectangular, geoPath } from 'd3-geo';
 import { feature as topoFeature } from 'topojson-client';
 import { useSOCSocket } from './useSOCSocket';
 import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from 'recharts';
-import { Activity, Shield, AlertTriangle, AlertCircle, Heart, Droplets, Monitor, Radio, Upload, Play, Pause, Bell, TrendingUp, Zap, Wifi, Clock, ChevronRight, X, Ban, Unplug, ShieldCheck, Eye, CheckCircle, RotateCcw, Lock, Unlock, AlertOctagon, Siren, History, Filter, Mail, MessageSquare, Globe, MapPin, Server, Database, Router, Smartphone, Link2, ExternalLink, RefreshCw, ChevronDown, Send, Check, Copy, Rss, Skull, Bug, Target, Crosshair, Radio as RadioIcon, Circle, Search, BookOpen, Layers, GitBranch, FileText, ClipboardList, UserCheck, AlertCircle as AlertCircleIcon, FileCheck, Scale, BookMarked, Flame, ArrowUpRight, CalendarClock, Users, Settings, KeyRound, HardDrive, LogOut } from 'lucide-react';
+import { Activity, Shield, AlertTriangle, AlertCircle, Heart, Droplets, Monitor, Radio, Upload, Play, Pause, Bell, TrendingUp, Zap, Wifi, Clock, ChevronRight, X, Ban, Unplug, ShieldCheck, Eye, CheckCircle, RotateCcw, Lock, Unlock, AlertOctagon, Siren, History, Filter, Mail, MessageSquare, Globe, MapPin, Server, Database, Router, Smartphone, Link2, ExternalLink, RefreshCw, ChevronDown, Send, Check, Copy, Rss, Skull, Bug, Target, Crosshair, Radio as RadioIcon, Circle, Search, BookOpen, Layers, GitBranch, FileText, ClipboardList, UserCheck, AlertCircle as AlertCircleIcon, FileCheck, Scale, BookMarked, Flame, ArrowUpRight, CalendarClock, Users, Settings, KeyRound, HardDrive, LogOut, Download } from 'lucide-react';
 
 const devices = ['Infusion Pump', 'Heart Monitor', 'Pulse Oximeter', 'ECG Monitor'];
 const attackTypes = ['DDoS', 'DoS', 'Spoofing', 'Recon', 'MQTT'];
@@ -1014,6 +1014,9 @@ export default function IoMTDashboard() {
   const [selectedAlertForMitre, setSelectedAlertForMitre] = useState(null);
   const [packets, setPackets]                   = useState([]);
   const [selectedPacket, setSelectedPacket]     = useState(null);
+  const [pktFilterProto,  setPktFilterProto]    = useState('all');
+  const [pktFilterType,   setPktFilterType]     = useState('all');
+  const [pktFilterDevice, setPktFilterDevice]   = useState('all');
   const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
@@ -3874,11 +3877,58 @@ ${[
             })()}
 
             {/* ── TAB 4: Forensic Analysis ── */}
-            {activeTab==='forensics' && (
+            {activeTab==='forensics' && (() => {
+              // Derive unique devices from packets for the device filter
+              const pktDevices = [...new Set(packets.map(p => p.device).filter(Boolean))];
+              const filteredPkts = packets.filter(p => {
+                if (pktFilterProto  !== 'all' && p.protocol !== pktFilterProto)  return false;
+                if (pktFilterType   === 'attack'  && !p.flag)  return false;
+                if (pktFilterType   === 'benign'  &&  p.flag)  return false;
+                if (pktFilterDevice !== 'all' && p.device !== pktFilterDevice) return false;
+                return true;
+              });
+              const exportCSV = () => {
+                const header = ['No','Time','Source','Destination','Protocol','Length','Info','Flagged','Device'];
+                const rows   = filteredPkts.map(p => [p.no, p.time, p.src, p.dst, p.protocol, p.len, `"${p.info}"`, p.flag ? 'Yes' : 'No', p.device || '']);
+                const csv    = [header, ...rows].map(r => r.join(',')).join('\n');
+                const blob   = new Blob([csv], { type: 'text/csv' });
+                const url    = URL.createObjectURL(blob);
+                const a      = document.createElement('a'); a.href = url; a.download = `packets_${Date.now()}.csv`; a.click();
+                URL.revokeObjectURL(url);
+              };
+              return (
               <div className="flex-1 overflow-hidden flex flex-col">
-                <div className="px-3 py-2 border-b border-slate-700/40 flex items-center gap-2 flex-shrink-0">
+                {/* Header row */}
+                <div className="px-3 py-2 border-b border-slate-700/40 flex items-center gap-2 flex-shrink-0 flex-wrap">
                   <Search className="w-4 h-4 text-violet-400"/><span className="font-bold text-base">Packet Capture — Wireshark View</span>
-                  <span className="ml-auto text-base text-slate-500">{packets.length} packets</span>
+                  <span className="text-base text-slate-500">{filteredPkts.length}/{packets.length} packets</span>
+                  {/* Filters */}
+                  <div className="ml-auto flex items-center gap-2 flex-wrap">
+                    <select value={pktFilterProto} onChange={e=>setPktFilterProto(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 text-slate-300 text-base rounded px-2 py-1 focus:outline-none">
+                      <option value="all">All Protocols</option>
+                      {['TCP','UDP','ARP','ICMP'].map(p=><option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <select value={pktFilterType} onChange={e=>setPktFilterType(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 text-slate-300 text-base rounded px-2 py-1 focus:outline-none">
+                      <option value="all">All Traffic</option>
+                      <option value="attack">Attack Only</option>
+                      <option value="benign">Benign Only</option>
+                    </select>
+                    <select value={pktFilterDevice} onChange={e=>setPktFilterDevice(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 text-slate-300 text-base rounded px-2 py-1 focus:outline-none">
+                      <option value="all">All Devices</option>
+                      {pktDevices.map(d=><option key={d} value={d}>{d}</option>)}
+                    </select>
+                    {(pktFilterProto!=='all'||pktFilterType!=='all'||pktFilterDevice!=='all') && (
+                      <button onClick={()=>{setPktFilterProto('all');setPktFilterType('all');setPktFilterDevice('all');}}
+                        className="px-2 py-1 text-base rounded bg-slate-700 text-slate-400 hover:text-white">Clear</button>
+                    )}
+                    <button onClick={exportCSV}
+                      className="flex items-center gap-1 px-3 py-1 text-base rounded bg-violet-600 hover:bg-violet-500 text-white font-medium">
+                      <Download className="w-3 h-3"/> Export CSV
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-1 overflow-hidden min-h-0">
                   {/* Packet table */}
@@ -3896,7 +3946,7 @@ ${[
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-700/30">
-                        {packets.map(pkt=>(
+                        {filteredPkts.map(pkt=>(
                           <tr key={pkt.no} onClick={()=>setSelectedPacket(pkt)}
                             className={`cursor-pointer hover:bg-slate-700/30 ${pkt.flag?'bg-red-500/10':''}${selectedPacket?.no===pkt.no?' bg-cyan-500/10':''}`}>
                             <td className="px-2 py-1 font-mono text-slate-400">{pkt.no}</td>
@@ -3934,7 +3984,8 @@ ${[
                   )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* ── TAB 5: Geographic IP Map ── */}
             {activeTab==='geomap' && (() => {
