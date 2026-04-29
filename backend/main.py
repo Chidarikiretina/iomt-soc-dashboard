@@ -101,6 +101,14 @@ X_pool.fillna(X_pool.median(numeric_only=True), inplace=True)
 constant_cols = [c for c in X_pool.columns if X_pool[c].nunique() <= 1]
 X_pool.drop(columns=constant_cols, inplace=True)
 
+# Align columns to what the model expects (avoids feature mismatch crash)
+if feature_names is not None:
+    missing = [f for f in feature_names if f not in X_pool.columns]
+    if missing:
+        print(f"[warn] {len(missing)} model features missing from pool — filling with 0")
+    X_pool = X_pool.reindex(columns=feature_names, fill_value=0)
+    print(f"Aligned pool to {len(feature_names)} model features")
+
 y_pool = df_pool["category"].values
 print(f"Replay pool: {len(X_pool)} rows, {X_pool.shape[1]} features")
 
@@ -270,7 +278,8 @@ async def replay_loop(interval: float = 0.8):
             await broadcast(result)
             save_alert(result)
         except Exception as e:
-            print(f"[replay_loop] error: {e}")
+            import traceback
+            print(f"[replay_loop] error: {e}\n{traceback.format_exc()}")
         await asyncio.sleep(interval)
 
 replay_task = None
