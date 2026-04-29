@@ -889,7 +889,7 @@ export default function IoMTDashboard() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
   const [responseLog, setResponseLog] = useState([]);
-  const [autoResponse, setAutoResponse] = useState({ critical: true, high: false });
+  const [autoResponse, setAutoResponse] = useState({ critical: true, high: true });
   const [blockedIPs, setBlockedIPs] = useState([]);
   const [isolatedDevices, setIsolatedDevices] = useState([]);
   const [appliedPatches, setAppliedPatches]   = useState({});   // { [device]: { [patchId]: boolean } }
@@ -1098,7 +1098,6 @@ export default function IoMTDashboard() {
         ...prev,
         totalPackets: prev.totalPackets + newData.packets,
         anomalies: prev.anomalies + (newData.anomalyScore > 0.7 ? 1 : 0),
-        blocked: prev.blocked + (newData.anomalyScore > 0.85 ? 1 : 0),
       }));
       setConfidenceScore(prev => Math.min(99, Math.max(75, prev + (Math.random() - 0.5) * 1.5)));
 
@@ -2973,7 +2972,9 @@ ${[
                         <span className="font-medium text-xs">Response Log</span>
                       </div>
                       <div className="divide-y divide-slate-700/30 overflow-y-auto max-h-48">
-                        {responseLog.slice(0, 6).map((log) => (
+                        {responseLog.length === 0
+                          ? <p className="px-3 py-4 text-xs text-slate-500 text-center">No response actions logged yet.</p>
+                          : responseLog.slice(0, 6).map((log) => (
                           <div key={log.id} className="px-3 py-2 flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: log.action.includes('Block')||log.action.includes('Isolat')?'#f87171':log.action.includes('Resolv')?'#34d399':'#fbbf24' }} />
                             <div className="flex-1 min-w-0">
