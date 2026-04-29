@@ -3507,10 +3507,20 @@ ${[
 
               // ── Patch helpers ──
               const togglePatch = (device, patchId) => {
+                const wasApplied = !!(appliedPatches[device]?.[patchId]);
                 setAppliedPatches(prev => ({
                   ...prev,
-                  [device]: { ...(prev[device]||{}), [patchId]: !(prev[device]?.[patchId]) }
+                  [device]: { ...(prev[device]||{}), [patchId]: !wasApplied }
                 }));
+                const patch = rDeviceDetails[device]?.patchList?.find(p=>p.id===patchId);
+                setResponseLog(prev => [{
+                  id: Date.now(),
+                  action: wasApplied ? `Patch rolled back: ${patch?.label||patchId}` : `Patch applied: ${patch?.label||patchId}`,
+                  target: device,
+                  alert: `Score ${wasApplied?'+':'−'}${patch?.reduction||0} pts`,
+                  time: new Date().toLocaleTimeString(),
+                  user: currentUser?.name || 'SOC Analyst',
+                }, ...prev.slice(0, 49)]);
               };
               const isPatchApplied  = (device, patchId) => !!(appliedPatches[device]?.[patchId]);
               const getPatchReduction = (device) => {
