@@ -338,7 +338,9 @@ const grcPolicies = [
 // ── Traffic Heatmap ────────────────────────────────────────────────────────────
 const hours = Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
 const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const generateHeatmap = () => days.map(d=>({ day:d, ...Object.fromEntries(hours.map(h=>[h, Math.floor(Math.random()*100)])) }));
+const _DAY_IDX = { 0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat' };
+const todayName = () => _DAY_IDX[new Date().getDay()];
+const emptyHeatmap = () => days.map(d=>({ day:d, ...Object.fromEntries(hours.map(h=>[h,0])) }));
 
 // ── Role-Based Access Control ──────────────────────────────────────────────────
 const ROLE_DEFS = {
@@ -759,6 +761,13 @@ export default function IoMTDashboard() {
       totalPackets: data.packet_count,
       anomalies:    data.anomaly_count,
     }));
+    // Update live heatmap — increment today's current hour bucket
+    const now = new Date(data.timestamp * 1000);
+    const day = _DAY_IDX[now.getDay()];
+    const hr  = `${String(now.getHours()).padStart(2,'0')}:00`;
+    setHeatmapData(prev => prev.map(row =>
+      row.day === day ? { ...row, [hr]: (row[hr] || 0) + 1 } : row
+    ));
     // Live geo hits — prefer true_category for variety; fall back to prediction
     const geoType = (data.true_category && data.true_category !== 'Benign')
       ? data.true_category
@@ -977,7 +986,7 @@ export default function IoMTDashboard() {
   const [selectedAlertForMitre, setSelectedAlertForMitre] = useState(null);
   const [packets]                               = useState(generatePackets);
   const [selectedPacket, setSelectedPacket]     = useState(null);
-  const [heatmapData]                           = useState(generateHeatmap);
+  const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
   const [mapZoom, setMapZoom] = useState({scale:1, tx:0, ty:0});
@@ -4272,19 +4281,32 @@ ${[
                         <div key={h} className="text-base text-slate-500 w-12 text-center">{h}</div>
                       ))}
                     </div>
-                    {heatmapData.map((row,di)=>(
-                      <div key={di} className="flex items-center gap-0.5 mb-0.5">
-                        <span className="text-base text-slate-400 w-7 flex-shrink-0">{row.day}</span>
-                        {hours.map(h=>{
-                          const v = row[h]/100;
-                          return (
-                            <div key={h} title={`${row.day} ${h}: ${Math.round(v*100)}`}
-                              className="w-4 h-4 rounded-sm flex-shrink-0 cursor-pointer hover:ring-1 hover:ring-white/30"
-                              style={{backgroundColor:`rgba(${heatmapMetric==='anomaly'?'239,68,68':'6,182,212'},${Math.max(0.05,v)})`}}/>
-                          );
-                        })}
-                      </div>
-                    ))}
+                    {heatmapData.map((row,di)=>{
+                      const today = todayName();
+                      const dayOrder = days.indexOf(row.day);
+                      const todayOrder = days.indexOf(today);
+                      const isFuture = dayOrder > todayOrder;
+                      const isToday  = row.day === today;
+                      const maxVal   = Math.max(1, ...hours.map(h=>row[h]));
+                      return (
+                        <div key={di} className="flex items-center gap-0.5 mb-0.5">
+                          <span className={`text-base w-7 flex-shrink-0 ${isToday?'text-cyan-400 font-bold':isFuture?'text-slate-600':'text-slate-400'}`}>
+                            {row.day}{isToday?' ●':''}
+                          </span>
+                          {hours.map(h=>{
+                            const v = isFuture ? 0 : row[h] / maxVal;
+                            return (
+                              <div key={h} title={isFuture?'No data yet':`${row.day} ${h}: ${row[h]} packets`}
+                                className="w-4 h-4 rounded-sm flex-shrink-0 cursor-pointer hover:ring-1 hover:ring-white/30"
+                                style={{backgroundColor: isFuture
+                                  ? 'rgba(100,100,100,0.1)'
+                                  : `rgba(${heatmapMetric==='anomaly'?'239,68,68':'6,182,212'},${Math.max(0.05,v)})`
+                                }}/>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 {/* 24hr trend chart */}
