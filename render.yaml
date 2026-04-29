@@ -16,7 +16,7 @@ services:
   - type: web
     name: iomt-soc-frontend
     runtime: static
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
