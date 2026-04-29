@@ -761,6 +761,31 @@ export default function IoMTDashboard() {
       totalPackets: data.packet_count,
       anomalies:    data.anomaly_count,
     }));
+    // Build live packet capture from WebSocket traffic
+    const PROTO_MAP = { DDoS:'TCP', DoS:'TCP', Recon:'ICMP', MQTT:'TCP', Spoofing:'ARP', Benign:'UDP' };
+    const INFO_MAP  = {
+      DDoS:'SYN flood packet burst', DoS:'RST flood / resource exhaustion',
+      Recon:'ICMP Echo Request sweep', MQTT:'MQTT CONNECT on port 1883',
+      Spoofing:'ARP Reply — IP spoofed', Benign:'Normal data exchange',
+    };
+    const proto = PROTO_MAP[data.prediction] || 'UDP';
+    const info  = INFO_MAP[data.prediction]  || 'Encrypted application data';
+    setPackets(prev => {
+      const pkt = {
+        no:       (prev[0]?.no || 999) + 1,
+        time:     new Date(data.timestamp * 1000).toLocaleTimeString(),
+        src:      data.src_ip,
+        dst:      data.dst_ip,
+        protocol: proto,
+        len:      data.packets,
+        info,
+        flag:     data.is_attack,
+        prediction: data.prediction,
+        confidence: data.confidence,
+      };
+      return [pkt, ...prev.slice(0, 99)];
+    });
+
     // Update live heatmap — increment today's current hour bucket
     const now = new Date(data.timestamp * 1000);
     const day = _DAY_IDX[now.getDay()];
@@ -984,7 +1009,7 @@ export default function IoMTDashboard() {
   const [playbookStarted, setPlaybookStarted]   = useState({});   // { [type]: timestamp }
   const [pbSelectedStep, setPbSelectedStep]     = useState(null); // index of expanded step
   const [selectedAlertForMitre, setSelectedAlertForMitre] = useState(null);
-  const [packets]                               = useState(generatePackets);
+  const [packets, setPackets]                   = useState([]);
   const [selectedPacket, setSelectedPacket]     = useState(null);
   const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
