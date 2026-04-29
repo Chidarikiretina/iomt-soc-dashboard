@@ -1083,11 +1083,7 @@ export default function IoMTDashboard() {
       { id: 3, type: 'Scanner IP', severity: 'medium', indicator: '185.220.101.45', source: 'AbuseIPDB', confidence: 76, time: '18 min ago', matched: true },
     ]);
 
-    // Initial notifications
-    setNotifications([
-      { id: 1, type: 'email', recipient: 'soc-team@hospital.org', alert: 'DDoS on Infusion Pump', status: 'sent', time: '2 min ago' },
-      { id: 2, type: 'slack', recipient: '#iomt-alerts', alert: 'MITM on Heart Monitor', status: 'sent', time: '5 min ago' },
-    ]);
+    setNotifications([]);
 
     setResponseLog([]);
   }, []);
