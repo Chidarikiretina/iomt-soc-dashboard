@@ -91,7 +91,7 @@ const tacticRadarBase = [
 // ── Incident Playbooks ─────────────────────────────────────────────────────────
 const playbookData = {
   DDoS: {
-    sla:15, severity:'high', color:'#ef4444', icon:'🌊',
+    sla:15, severity:'critical', color:'#ef4444', icon:'🌊',
     description:'Distributed Denial of Service targeting IoMT device availability. Immediate containment required.',
     steps:[
       { t:'Identify Source IPs',        m:2,  d:'Analyse traffic logs for attack origins. Correlate multiple source IPs across /24 subnets.', role:'Network Analyst',    tactic:'Reconnaissance',       technique:'T1595',  tools:['Wireshark','NetFlow Analyzer'],    evidence:'List of confirmed attacker IPs with packet counts' },
@@ -116,7 +116,7 @@ const playbookData = {
     ]
   },
   Spoofing: {
-    sla:20, severity:'critical', color:'#8b5cf6', icon:'🎭',
+    sla:20, severity:'high', color:'#8b5cf6', icon:'🎭',
     description:'IP/MAC/ARP spoofing detected — attacker impersonating a trusted IoMT device on the network.',
     steps:[
       { t:'Verify Spoofed Identity',    m:2,  d:'Cross-reference MAC/IP binding in DHCP lease table. Compare ARP cache entries against known device registry.', role:'Threat Analyst', tactic:'Identification',    technique:'T1557.002', tools:['DHCP Console','ARP Monitor'], evidence:'MAC-IP mismatch table with DHCP log timestamps' },

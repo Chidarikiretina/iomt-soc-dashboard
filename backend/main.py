@@ -194,11 +194,11 @@ DEVICES = list(DEVICE_IPS.keys())
 
 SEVERITY_MAP = {
     "Benign":   None,
-    "DDoS":     "high",
+    "DDoS":     "critical",
     "DoS":      "high",
     "Recon":    "medium",
     "MQTT":     "medium",
-    "Spoofing": "critical",
+    "Spoofing": "high",
 }
 
 def random_ip():
