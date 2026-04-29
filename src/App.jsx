@@ -1083,9 +1083,7 @@ export default function IoMTDashboard() {
       { id: 2, type: 'slack', recipient: '#iomt-alerts', alert: 'MITM on Heart Monitor', status: 'sent', time: '5 min ago' },
     ]);
 
-    setResponseLog([
-      { id: 1, action: 'Auto-blocked', target: '192.168.99.45', alert: 'DDoS Attack', time: '1 hour ago', user: 'System' },
-    ]);
+    setResponseLog([]);
   }, []);
 
   // Real-time updates
@@ -3813,7 +3811,18 @@ ${[
                                     label: isIsolated ? 'Restore Network' : 'Isolate Device',
                                     icon:  isIsolated ? '🔓' : '🔒',
                                     cls:   isIsolated ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 hover:bg-violet-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20',
-                                    fn:    ()=>setIsolatedDevices(prev=>isIsolated?prev.filter(d=>d!==device):[...prev,device]),
+                                    fn: () => {
+                                      const nowIsolated = !isIsolated;
+                                      setIsolatedDevices(prev => nowIsolated ? [...prev, device] : prev.filter(d => d !== device));
+                                      setResponseLog(prev => [{
+                                        id: Date.now(),
+                                        action: nowIsolated ? 'Device Isolated → VLAN 99' : 'Device Restored → VLAN 20',
+                                        target: device,
+                                        alert: topAttack || 'Manual action',
+                                        time: new Date().toLocaleTimeString(),
+                                        user: currentUser?.name || 'SOC Analyst',
+                                      }, ...prev.slice(0, 49)]);
+                                    },
                                   },
                                   {
                                     label: 'Open Playbook',
