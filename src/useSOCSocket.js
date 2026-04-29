@@ -25,6 +25,9 @@ export function useSOCSocket({ onTraffic, onAlert } = {}) {
       setBackendUp(true);
       clearTimeout(reconnectRef.current);
       console.log('[SOC] WebSocket connected');
+      // Auto-start the stream on connect
+      socket.send(JSON.stringify({ cmd: 'start', interval: 0.8 }));
+      setLiveRunning(true);
     };
 
     socket.onmessage = (event) => {

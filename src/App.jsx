@@ -741,7 +741,7 @@ export default function IoMTDashboard() {
   const [stats, setStats] = useState({ totalPackets: 24580, anomalies: 47, blocked: 23, devices: 4 });
   const [deviceStatus, setDeviceStatus] = useState({});
   const [confidenceScore, setConfidenceScore] = useState(98.30);
-  const [alertThreshold, setAlertThreshold]   = useState(70);
+  const [alertThreshold, setAlertThreshold]   = useState(90);
   const [fpSuppressions, setFpSuppressions]   = useState([]); // [{key, type, device, addedAt}]
   const [suppressedCount, setSuppressedCount] = useState(0);
   const [liveGeoHits, setLiveGeoHits]         = useState({});
