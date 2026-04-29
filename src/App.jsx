@@ -738,7 +738,7 @@ export default function IoMTDashboard() {
   const [isLive, setIsLive] = useState(true);
   const [trafficHistory, setTrafficHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [stats, setStats] = useState({ totalPackets: 24580, anomalies: 47, blocked: 23, devices: 4 });
+  const [stats, setStats] = useState({ totalPackets: 0, anomalies: 0, blocked: 0, devices: 4 });
   const [deviceStatus, setDeviceStatus] = useState({});
   const [confidenceScore, setConfidenceScore] = useState(98.30);
   const [alertThreshold, setAlertThreshold]   = useState(90);
@@ -2651,7 +2651,7 @@ ${[
               </div>
               <div className="rounded-md bg-slate-800/60 px-2 py-1.5 text-center">
                 <div className="text-slate-500 leading-tight">Blocked</div>
-                <div className="font-bold text-orange-400 leading-tight">{blockedIPs.length}</div>
+                <div className="font-bold text-orange-400 leading-tight">{stats.blocked}</div>
               </div>
               <div className="rounded-md bg-slate-800/60 px-2 py-1.5 text-center">
                 <div className="text-slate-500 leading-tight">ACL</div>
