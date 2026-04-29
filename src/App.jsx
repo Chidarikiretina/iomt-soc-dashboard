@@ -448,7 +448,7 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (loginAttempts >= 5) return;
+    if (loginAttempts >= 3) return;
     setLoading(true);
     setError('');
     setTimeout(() => {
@@ -485,9 +485,9 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
         }
         const attempts = loginAttempts + 1;
         setLoginAttempts(attempts);
-        setError(attempts >= 5
-          ? 'Account locked. Contact your system administrator.'
-          : `Authentication failed. ${5 - attempts} attempt${5 - attempts !== 1 ? 's' : ''} remaining.`
+        setError(attempts >= 3
+          ? 'Account locked after 3 failed attempts. Contact your system administrator.'
+          : `Authentication failed. ${3 - attempts} attempt${3 - attempts !== 1 ? 's' : ''} remaining.`
         );
         setLoading(false);
       }
@@ -521,7 +521,7 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
     }).catch(() => {});
   };
 
-  const locked = loginAttempts >= 5;
+  const locked = loginAttempts >= 3;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif', position: 'relative', overflow: 'hidden', background: '#060d1a' }}>
@@ -934,15 +934,15 @@ export default function IoMTDashboard() {
   // Persisted to localStorage so settings survive page refreshes
   const [userStates, setUserStates] = useState(() => {
     try {
-      const saved = localStorage.getItem('iomt_userStates');
+      const saved = localStorage.getItem('iomt_userStates_v2');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return Object.fromEntries(DEMO_USERS.map(u => [u.username, { blocked: false, password: u.password, mfaEnabled: true, phone: u.phone }]));
+    return Object.fromEntries(DEMO_USERS.map(u => [u.username, { blocked: false, password: u.password, mfaEnabled: false, phone: u.phone }]));
   });
 
   // Keep localStorage in sync whenever userStates changes
   useEffect(() => {
-    try { localStorage.setItem('iomt_userStates', JSON.stringify(userStates)); } catch {}
+    try { localStorage.setItem('iomt_userStates_v2', JSON.stringify(userStates)); } catch {}
   }, [userStates]);
   const [resetTarget,  setResetTarget]  = useState(null);  // username whose pw is being reset
   const [resetPwVal,   setResetPwVal]   = useState('');
