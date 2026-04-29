@@ -774,7 +774,7 @@ export default function IoMTDashboard() {
     const info  = INFO_MAP[data.prediction]  || 'Encrypted application data';
     setPackets(prev => {
       const pkt = {
-        no:       (prev[0]?.no || 999) + 1,
+        no:       data.packet_count,
         time:     new Date(data.timestamp * 1000).toLocaleTimeString(),
         src:      data.src_ip,
         dst:      data.dst_ip,
@@ -1269,7 +1269,7 @@ export default function IoMTDashboard() {
       case 'block':
         setBlockedIPs(prev => [...prev, alert.sourceIP]);
         logEntry = { ...logEntry, action: 'Blocked IP', target: alert.sourceIP, alert: alert.type };
-        setStats(prev => ({ ...prev, blocked: prev.blocked + 1 }));
+        if (!isAuto) setStats(prev => ({ ...prev, blocked: prev.blocked + 1 }));
         break;
       case 'isolate': {
         const octet = DEVICE_OCTETS[alert.device] || 100;
