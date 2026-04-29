@@ -5473,6 +5473,7 @@ ${[
                   {SOC_TEAM.map((member, idx) => {
                     const userDef  = DEMO_USERS.find(u => u.username === member.username);
                     const roleDef  = userDef ? ROLE_DEFS[userDef.role] : null;
+                    const isOnline = member.username === currentUser?.username;
                     const tabLabels = {
                       exec:'Overview', alerts:'Alerts & MITRE', playbook:'Playbooks', risk:'Risk Score',
                       forensics:'Forensics', geomap:'Geo Map', heatmap:'Heatmap', topology:'Topology',
@@ -5495,9 +5496,9 @@ ${[
                             </div>
                             <p className="text-xs mb-1" style={{ color: member.color }}>{member.role}</p>
                             <div className="flex items-center gap-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full ${member.online ? 'bg-emerald-400' : 'bg-slate-600'}`}/>
-                              <span className={`text-xs ${member.online ? 'text-emerald-400' : 'text-slate-500'}`}>
-                                {member.online ? 'On Shift' : 'Off Shift'}
+                              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`}/>
+                              <span className={`text-xs ${isOnline ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                {isOnline ? 'On Shift' : 'Off Shift'}
                               </span>
                             </div>
                           </div>
