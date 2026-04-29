@@ -3885,7 +3885,7 @@ ${[
               });
               const exportCSV = () => {
                 const header = ['No','Time','Source','Destination','Protocol','Length','Info','Flagged','Device'];
-                const rows   = filteredPkts.map(p => [p.no, p.time, p.src, p.dst, p.protocol, p.len, `"${p.info}"`, p.flag ? 'Yes' : 'No', p.device || '']);
+                const rows   = filteredPkts.map(p => [p.no, `"${p.time}"`, p.src, p.dst, p.protocol, p.len, `"${p.info}"`, p.flag ? 'Yes' : 'No', p.device || '']);
                 const csv    = [header, ...rows].map(r => r.join(',')).join('\n');
                 const blob   = new Blob([csv], { type: 'text/csv' });
                 const url    = URL.createObjectURL(blob);
