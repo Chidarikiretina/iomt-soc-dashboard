@@ -1049,33 +1049,32 @@ export default function IoMTDashboard() {
   useEffect(() => { try { localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
   useEffect(() => { try { localStorage.setItem('iomt_trend_v1',  JSON.stringify(trendHistory.slice(-120))); } catch {} }, [trendHistory]);
 
+  // Ref mirrors alerts so the interval can read current value without a closure
+  const alertsSnapRef = useRef(alerts);
+  useEffect(() => { alertsSnapRef.current = alerts; }, [alerts]);
+
   // Append a trend snapshot every 60 s while the dashboard is open
   useEffect(() => {
     if (!currentUser) return;
     const snap = () => {
+      const a = alertsSnapRef.current;
       const now = new Date();
       const label = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      setAlerts(prevAlerts => {
-        const bucket = {
-          time:     label,
-          total:    prevAlerts.length,
-          DDoS:     prevAlerts.filter(a => a.type === 'DDoS').length,
-          DoS:      prevAlerts.filter(a => a.type === 'DoS').length,
-          Recon:    prevAlerts.filter(a => a.type === 'Recon').length,
-          MQTT:     prevAlerts.filter(a => a.type === 'MQTT').length,
-          Spoofing: prevAlerts.filter(a => a.type === 'Spoofing').length,
-          critical: prevAlerts.filter(a => a.severity === 'critical').length,
-          high:     prevAlerts.filter(a => a.severity === 'high').length,
-          medium:   prevAlerts.filter(a => a.severity === 'medium').length,
-        };
-        setTrendHistory(prev => {
-          const next = [...prev, bucket];
-          return next.slice(-120); // keep last 2 hours at 1-min resolution
-        });
-        return prevAlerts;
-      });
+      const bucket = {
+        time:     label,
+        total:    a.length,
+        DDoS:     a.filter(x => x.type === 'DDoS').length,
+        DoS:      a.filter(x => x.type === 'DoS').length,
+        Recon:    a.filter(x => x.type === 'Recon').length,
+        MQTT:     a.filter(x => x.type === 'MQTT').length,
+        Spoofing: a.filter(x => x.type === 'Spoofing').length,
+        critical: a.filter(x => x.severity === 'critical').length,
+        high:     a.filter(x => x.severity === 'high').length,
+        medium:   a.filter(x => x.severity === 'medium').length,
+      };
+      setTrendHistory(prev => [...prev, bucket].slice(-120));
     };
-    snap(); // immediate snapshot on mount
+    snap();
     const id = setInterval(snap, 60_000);
     return () => clearInterval(id);
   }, [currentUser]);
