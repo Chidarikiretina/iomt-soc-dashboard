@@ -347,7 +347,7 @@ const ROLE_DEFS = {
   // Admin: SYSTEM ADMINISTRATOR — manages users, system config, full read access across all modules
   admin: {
     label: 'System Administrator', color: '#f59e0b', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-    tabs: ['admin_panel', 'exec', 'logs', 'team'],
+    tabs: ['admin_panel', 'exec', 'analytics', 'logs', 'team'],
     canIsolate: false, canBlock: false, canAck: false,
     canManageUsers: true, canConfigSystem: true, canViewAll: true, canExportAll: true,
     description: 'Manages user accounts, system configuration, integrations and audit logs. Full read access to all modules.',
@@ -356,7 +356,7 @@ const ROLE_DEFS = {
   // SOC Manager (Tinashe): Operational lead — incident command, all security ops
   soc_manager: {
     label: 'SOC Manager', color: '#ef4444', badge: 'bg-red-500/20 text-red-300 border-red-500/40',
-    tabs: ['exec', 'alerts', 'logs', 'playbook', 'risk', 'forensics', 'geomap', 'heatmap', 'topology', 'upload', 'team'],
+    tabs: ['exec', 'analytics', 'alerts', 'logs', 'playbook', 'risk', 'forensics', 'geomap', 'heatmap', 'topology', 'upload', 'team'],
     canIsolate: true, canBlock: true, canAck: true,
     description: 'Operational incident command. Authorises device isolation & IP blocking.',
     restrictions: 'No direct access to HIPAA/GRC configuration panels.',
@@ -364,7 +364,7 @@ const ROLE_DEFS = {
   // Threat Intelligence Analyst (Precious): Hunt, correlate, investigate threats
   threat_analyst: {
     label: 'Threat Intel Analyst', color: '#8b5cf6', badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
-    tabs: ['exec', 'alerts', 'logs', 'forensics', 'geomap', 'heatmap', 'team'],
+    tabs: ['exec', 'analytics', 'alerts', 'logs', 'forensics', 'geomap', 'heatmap', 'team'],
     canIsolate: false, canBlock: false, canAck: true,
     description: 'Threat hunting, intelligence correlation & indicator analysis.',
     restrictions: 'Cannot isolate devices or block IPs. No playbook execution or compliance access.',
@@ -372,7 +372,7 @@ const ROLE_DEFS = {
   // Incident Responder (Primrose): Triage, contain, execute playbooks
   incident_responder: {
     label: 'Incident Responder', color: '#06b6d4', badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
-    tabs: ['exec', 'alerts', 'logs', 'playbook', 'forensics', 'topology', 'team'],
+    tabs: ['exec', 'analytics', 'alerts', 'logs', 'playbook', 'forensics', 'topology', 'team'],
     canIsolate: true, canBlock: false, canAck: true,
     description: 'Active incident triage, containment & playbook-driven response.',
     restrictions: 'Can isolate devices but cannot block IPs — escalate to SOC Manager.',
@@ -380,7 +380,7 @@ const ROLE_DEFS = {
   // ML / Data Engineer (Jubillee): Model management, CSV analysis, data quality
   ml_engineer: {
     label: 'ML / Data Engineer', color: '#22c55e', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-    tabs: ['exec', 'upload', 'forensics', 'heatmap', 'team'],
+    tabs: ['exec', 'analytics', 'upload', 'forensics', 'heatmap', 'team'],
     canIsolate: false, canBlock: false, canAck: false,
     description: 'ML model oversight, dataset upload, traffic analysis & heatmap review.',
     restrictions: 'Read-only on alerts. No incident response actions or compliance access.',
@@ -388,7 +388,7 @@ const ROLE_DEFS = {
   // Network Security Analyst (Evelyn): Network visibility, geo threats, topology
   network_analyst: {
     label: 'Network Security Analyst', color: '#f97316', badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
-    tabs: ['exec', 'alerts', 'logs', 'geomap', 'heatmap', 'topology', 'team'],
+    tabs: ['exec', 'analytics', 'alerts', 'logs', 'geomap', 'heatmap', 'topology', 'team'],
     canIsolate: false, canBlock: true, canAck: true,
     description: 'Network traffic monitoring, geo-threat analysis & device topology.',
     restrictions: 'Can block IPs but cannot isolate devices. No forensics or compliance access.',
@@ -737,14 +737,14 @@ export default function IoMTDashboard() {
   });
   const [isLive, setIsLive] = useState(true);
   const [trafficHistory, setTrafficHistory] = useState([]);
-  const [alerts, setAlerts] = useState([]);
+  const [alerts, setAlerts] = useState(() => { try { const s = localStorage.getItem('iomt_alerts_v1'); return s ? JSON.parse(s) : []; } catch { return []; } });
   const [stats, setStats] = useState({ totalPackets: 0, anomalies: 0, blocked: 0, devices: 4 });
   const [deviceStatus, setDeviceStatus] = useState({});
   const [confidenceScore, setConfidenceScore] = useState(98.30);
   const [alertThreshold, setAlertThreshold]   = useState(90);
   const [fpSuppressions, setFpSuppressions]   = useState([]); // [{key, type, device, addedAt}]
   const [suppressedCount, setSuppressedCount] = useState(0);
-  const [liveGeoHits, setLiveGeoHits]         = useState({});
+  const [liveGeoHits, setLiveGeoHits]         = useState(() => { try { const s = localStorage.getItem('iomt_geo_v1'); return s ? JSON.parse(s) : {}; } catch { return {}; } });
 
   // ── WebSocket callbacks (stable refs so hook doesn't re-subscribe) ────────────
   // Refs hold the latest callback; stable wrappers pass to the hook so it never
@@ -889,9 +889,9 @@ export default function IoMTDashboard() {
   // Alert Response States
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
-  const [responseLog, setResponseLog] = useState([]);
+  const [responseLog, setResponseLog] = useState(() => { try { const s = localStorage.getItem('iomt_reslog_v1'); return s ? JSON.parse(s) : []; } catch { return []; } });
   const [autoResponse, setAutoResponse] = useState({ critical: true, high: true });
-  const [blockedIPs, setBlockedIPs] = useState([]);
+  const [blockedIPs, setBlockedIPs] = useState(() => { try { const s = localStorage.getItem('iomt_blocked_v1'); return s ? JSON.parse(s) : []; } catch { return []; } });
   const [isolatedDevices, setIsolatedDevices] = useState([]);
   const [appliedPatches, setAppliedPatches]   = useState({});   // { [device]: { [patchId]: boolean } }
   const [alertFilter, setAlertFilter] = useState('all');
@@ -1038,6 +1038,48 @@ export default function IoMTDashboard() {
   const [refreshRate, setRefreshRate] = useState(2000);
   const [worldPaths, setWorldPaths] = useState([]);
 
+  // ── Trend history for Analytics tab (persisted) ───────────────────────────
+  const [trendHistory, setTrendHistory] = useState(() => { try { const s = localStorage.getItem('iomt_trend_v1'); return s ? JSON.parse(s) : []; } catch { return []; } });
+
+  // Persist key state to localStorage
+  useEffect(() => { try { localStorage.setItem('iomt_alerts_v1',  JSON.stringify(alerts.slice(0, 50))); } catch {} }, [alerts]);
+  useEffect(() => { try { localStorage.setItem('iomt_reslog_v1', JSON.stringify(responseLog.slice(0, 50))); } catch {} }, [responseLog]);
+  useEffect(() => { try { localStorage.setItem('iomt_blocked_v1',JSON.stringify(blockedIPs)); } catch {} }, [blockedIPs]);
+  useEffect(() => { try { localStorage.setItem('iomt_geo_v1',    JSON.stringify(liveGeoHits)); } catch {} }, [liveGeoHits]);
+  useEffect(() => { try { localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
+  useEffect(() => { try { localStorage.setItem('iomt_trend_v1',  JSON.stringify(trendHistory.slice(-120))); } catch {} }, [trendHistory]);
+
+  // Append a trend snapshot every 60 s while the dashboard is open
+  useEffect(() => {
+    if (!currentUser) return;
+    const snap = () => {
+      const now = new Date();
+      const label = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      setAlerts(prevAlerts => {
+        const bucket = {
+          time:     label,
+          total:    prevAlerts.length,
+          DDoS:     prevAlerts.filter(a => a.type === 'DDoS').length,
+          DoS:      prevAlerts.filter(a => a.type === 'DoS').length,
+          Recon:    prevAlerts.filter(a => a.type === 'Recon').length,
+          MQTT:     prevAlerts.filter(a => a.type === 'MQTT').length,
+          Spoofing: prevAlerts.filter(a => a.type === 'Spoofing').length,
+          critical: prevAlerts.filter(a => a.severity === 'critical').length,
+          high:     prevAlerts.filter(a => a.severity === 'high').length,
+          medium:   prevAlerts.filter(a => a.severity === 'medium').length,
+        };
+        setTrendHistory(prev => {
+          const next = [...prev, bucket];
+          return next.slice(-120); // keep last 2 hours at 1-min resolution
+        });
+        return prevAlerts;
+      });
+    };
+    snap(); // immediate snapshot on mount
+    const id = setInterval(snap, 60_000);
+    return () => clearInterval(id);
+  }, [currentUser]);
+
   // Clock + session
   const [clockTime, setClockTime]   = useState(new Date());
   const [shiftStart]                = useState(new Date());
@@ -1055,7 +1097,7 @@ export default function IoMTDashboard() {
   const [pktFilterProto,  setPktFilterProto]    = useState('all');
   const [pktFilterType,   setPktFilterType]     = useState('all');
   const [pktFilterDevice, setPktFilterDevice]   = useState('all');
-  const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
+  const [heatmapData, setHeatmapData]           = useState(() => { try { const s = localStorage.getItem('iomt_heatmap_v1'); return s ? JSON.parse(s) : emptyHeatmap; } catch { return emptyHeatmap; } });
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
   const [mapZoom, setMapZoom] = useState({scale:1, tx:0, ty:0});
@@ -1111,9 +1153,6 @@ export default function IoMTDashboard() {
     });
     setDeviceStatus(initialDevices);
 
-    // Alerts come from live WebSocket only — start empty
-    setAlerts([]);
-
     // Initial threat intel
     setThreatIntel([
       { id: 1, type: 'Botnet C2', severity: 'critical', indicator: '45.33.32.156', source: 'AlienVault OTX', confidence: 95, time: '5 min ago', matched: true },
@@ -1122,8 +1161,6 @@ export default function IoMTDashboard() {
     ]);
 
     setNotifications([]);
-
-    setResponseLog([]);
   }, []);
 
   // Real-time updates
@@ -2652,6 +2689,7 @@ ${[
             {[
               { id:'admin_panel', icon:Settings,      label:'Admin Panel',     color:'text-amber-400'   },
               { id:'exec',        icon:TrendingUp,    label:'Overview',        color:'text-cyan-400'    },
+              { id:'analytics',   icon:Activity,      label:'Analytics',       color:'text-indigo-400'  },
               { id:'alerts',      icon:Bell,          label:'Alerts & MITRE',  color:'text-amber-400'   },
               { id:'logs',        icon:Database,      label:'Attack Logs',     color:'text-rose-400'    },
               { id:'playbook',    icon:BookOpen,      label:'Playbooks',       color:'text-cyan-400'    },
@@ -3088,6 +3126,155 @@ ${[
                     </div>
                   </div>
 
+                </div>
+              );
+            })()}
+
+            {/* ── TAB: Analytics ── */}
+            {activeTab==='analytics' && (() => {
+              const typeColors = { DDoS:'#ef4444', DoS:'#f97316', Recon:'#eab308', MQTT:'#06b6d4', Spoofing:'#8b5cf6' };
+              const typeDist = Object.entries(typeColors).map(([name, color]) => ({
+                name, value: alerts.filter(a => a.type === name).length, color
+              })).filter(d => d.value > 0);
+              const sevDist = [
+                { name:'Critical', value: alerts.filter(a=>a.severity==='critical').length, color:'#ef4444' },
+                { name:'High',     value: alerts.filter(a=>a.severity==='high').length,     color:'#f97316' },
+                { name:'Medium',   value: alerts.filter(a=>a.severity==='medium').length,   color:'#eab308' },
+                { name:'Low',      value: alerts.filter(a=>a.severity==='low').length,      color:'#22c55e' },
+              ].filter(d => d.value > 0);
+              const actionDist = [
+                { name:'Blocked IP',  value: responseLog.filter(r=>r.action==='Blocked IP').length,  color:'#ef4444' },
+                { name:'Isolated',    value: responseLog.filter(r=>r.action?.includes('Isolated')).length, color:'#8b5cf6' },
+                { name:'Resolved',    value: responseLog.filter(r=>r.action==='Resolved').length,    color:'#22c55e' },
+                { name:'Acknowledged',value: responseLog.filter(r=>r.action==='Acknowledged').length,color:'#06b6d4' },
+              ];
+              const displayTrend = trendHistory.slice(-30); // last 30 minutes
+              return (
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Activity className="w-5 h-5 text-indigo-400" />
+                    <h2 className="text-lg font-bold text-slate-100">Analytics & Trends</h2>
+                    <span className="text-xs text-slate-500 ml-auto">{trendHistory.length} data points · updates every 60 s</span>
+                  </div>
+
+                  {/* Row 1: Alerts over time */}
+                  <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-3">Alert Volume Over Time</h3>
+                    {displayTrend.length < 2 ? (
+                      <div className="flex items-center justify-center h-40 text-slate-500 text-sm">Collecting data — check back in a minute…</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={180}>
+                        <AreaChart data={displayTrend} margin={{top:4,right:8,left:-20,bottom:0}}>
+                          <defs>
+                            <linearGradient id="gradDDoS"    x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#ef4444" stopOpacity={0.3}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
+                            <linearGradient id="gradDoS"     x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#f97316" stopOpacity={0.3}/><stop offset="95%" stopColor="#f97316" stopOpacity={0}/></linearGradient>
+                            <linearGradient id="gradRecon"   x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#eab308" stopOpacity={0.3}/><stop offset="95%" stopColor="#eab308" stopOpacity={0}/></linearGradient>
+                            <linearGradient id="gradMQTT"    x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#06b6d4" stopOpacity={0.3}/><stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/></linearGradient>
+                            <linearGradient id="gradSpoofing"x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.3}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <XAxis dataKey="time" tick={{fill:'#94a3b8',fontSize:10}} interval="preserveStartEnd" />
+                          <YAxis tick={{fill:'#94a3b8',fontSize:10}} allowDecimals={false} />
+                          <Tooltip contentStyle={{backgroundColor:'#1e293b',border:'1px solid #334155',borderRadius:'8px',color:'#e2e8f0',fontSize:12}} />
+                          <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}} />
+                          <Area type="monotone" dataKey="DDoS"     stroke="#ef4444" fill="url(#gradDDoS)"     strokeWidth={1.5} dot={false} />
+                          <Area type="monotone" dataKey="DoS"      stroke="#f97316" fill="url(#gradDoS)"      strokeWidth={1.5} dot={false} />
+                          <Area type="monotone" dataKey="Recon"    stroke="#eab308" fill="url(#gradRecon)"    strokeWidth={1.5} dot={false} />
+                          <Area type="monotone" dataKey="MQTT"     stroke="#06b6d4" fill="url(#gradMQTT)"     strokeWidth={1.5} dot={false} />
+                          <Area type="monotone" dataKey="Spoofing" stroke="#8b5cf6" fill="url(#gradSpoofing)" strokeWidth={1.5} dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* Row 2: Threat type + Severity donut side by side */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-slate-300 mb-3">Threat Type Distribution</h3>
+                      {typeDist.length === 0 ? (
+                        <div className="flex items-center justify-center h-36 text-slate-500 text-sm">No alerts yet</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <PieChart>
+                            <Pie data={typeDist} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value" nameKey="name" label={({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                              {typeDist.map((d,i) => <Cell key={i} fill={d.color} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{backgroundColor:'#1e293b',border:'1px solid #334155',borderRadius:'8px',fontSize:12}} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-slate-300 mb-3">Severity Breakdown</h3>
+                      {sevDist.length === 0 ? (
+                        <div className="flex items-center justify-center h-36 text-slate-500 text-sm">No alerts yet</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <BarChart data={sevDist} margin={{top:4,right:8,left:-20,bottom:0}}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="name" tick={{fill:'#94a3b8',fontSize:10}} />
+                            <YAxis tick={{fill:'#94a3b8',fontSize:10}} allowDecimals={false} />
+                            <Tooltip contentStyle={{backgroundColor:'#1e293b',border:'1px solid #334155',borderRadius:'8px',fontSize:12}} />
+                            <Bar dataKey="value" radius={[4,4,0,0]}>
+                              {sevDist.map((d,i) => <Cell key={i} fill={d.color} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 3: Severity over time + Response actions */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-slate-300 mb-3">Severity Trend Over Time</h3>
+                      {displayTrend.length < 2 ? (
+                        <div className="flex items-center justify-center h-40 text-slate-500 text-sm">Collecting…</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <AreaChart data={displayTrend} margin={{top:4,right:8,left:-20,bottom:0}}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="time" tick={{fill:'#94a3b8',fontSize:10}} interval="preserveStartEnd" />
+                            <YAxis tick={{fill:'#94a3b8',fontSize:10}} allowDecimals={false} />
+                            <Tooltip contentStyle={{backgroundColor:'#1e293b',border:'1px solid #334155',borderRadius:'8px',fontSize:12}} />
+                            <Legend wrapperStyle={{fontSize:11,color:'#94a3b8'}} />
+                            <Area type="monotone" dataKey="critical" stroke="#ef4444" fill="#ef444420" strokeWidth={2} dot={false} />
+                            <Area type="monotone" dataKey="high"     stroke="#f97316" fill="#f9731620" strokeWidth={2} dot={false} />
+                            <Area type="monotone" dataKey="medium"   stroke="#eab308" fill="#eab30820" strokeWidth={2} dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-slate-300 mb-3">Response Actions</h3>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <BarChart data={actionDist} layout="vertical" margin={{top:4,right:16,left:0,bottom:0}}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <XAxis type="number" tick={{fill:'#94a3b8',fontSize:10}} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{fill:'#94a3b8',fontSize:10}} width={80} />
+                          <Tooltip contentStyle={{backgroundColor:'#1e293b',border:'1px solid #334155',borderRadius:'8px',fontSize:12}} />
+                          <Bar dataKey="value" radius={[0,4,4,0]}>
+                            {actionDist.map((d,i) => <Cell key={i} fill={d.color} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Summary stats */}
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      { label:'Total Alerts',    value: alerts.length,                                             color:'#06b6d4' },
+                      { label:'Threats Blocked', value: blockedIPs.length,                                        color:'#ef4444' },
+                      { label:'Actions Logged',  value: responseLog.length,                                       color:'#8b5cf6' },
+                      { label:'Data Since',       value: trendHistory.length > 0 ? trendHistory[0].time : '—',    color:'#22c55e' },
+                    ].map(({label,value,color}) => (
+                      <div key={label} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center">
+                        <div className="text-2xl font-black mb-1" style={{color}}>{value}</div>
+                        <div className="text-xs text-slate-500 uppercase tracking-wide">{label}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             })()}
