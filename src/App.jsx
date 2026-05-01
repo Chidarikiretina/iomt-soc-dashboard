@@ -1046,7 +1046,6 @@ export default function IoMTDashboard() {
   useEffect(() => { try { localStorage.setItem('iomt_reslog_v1', JSON.stringify(responseLog.slice(0, 50))); } catch {} }, [responseLog]);
   useEffect(() => { try { localStorage.setItem('iomt_blocked_v1',JSON.stringify(blockedIPs)); } catch {} }, [blockedIPs]);
   useEffect(() => { try { localStorage.setItem('iomt_geo_v1',    JSON.stringify(liveGeoHits)); } catch {} }, [liveGeoHits]);
-  useEffect(() => { try { localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
   useEffect(() => { try { localStorage.setItem('iomt_trend_v1',  JSON.stringify(trendHistory.slice(-120))); } catch {} }, [trendHistory]);
 
   // Ref mirrors alerts so the interval can read current value without a closure
@@ -1097,6 +1096,7 @@ export default function IoMTDashboard() {
   const [pktFilterType,   setPktFilterType]     = useState('all');
   const [pktFilterDevice, setPktFilterDevice]   = useState('all');
   const [heatmapData, setHeatmapData]           = useState(() => { try { const s = localStorage.getItem('iomt_heatmap_v1'); return s ? JSON.parse(s) : emptyHeatmap; } catch { return emptyHeatmap; } });
+  useEffect(() => { try { localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
   const [mapZoom, setMapZoom] = useState({scale:1, tx:0, ty:0});
