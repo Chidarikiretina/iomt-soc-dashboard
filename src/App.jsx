@@ -846,6 +846,7 @@ export default function IoMTDashboard() {
       confidence:   alert.confidence,
       anomalyScore: alert.anomalyScore,
       timestamp:    new Date(),
+      createdAt:    Date.now(),
       mitre:        alert.mitre,
     };
     setAlerts(prev => [newAlert, ...prev.slice(0, 49)]);
@@ -1263,13 +1264,15 @@ export default function IoMTDashboard() {
   // Alert Response Actions
   const handleQuickAction = (action, alert, isAuto = false) => {
     const timestamp = new Date().toLocaleTimeString();
-    let logEntry = { id: Date.now(), time: timestamp, user: isAuto ? 'System (Auto)' : 'Analyst' };
+    const actorName = isAuto ? 'Auto-Response' : (currentUser?.username || 'Analyst');
+    const actorRole = isAuto ? 'System' : (currentUser?.role?.replace('_',' ') || '');
+    let logEntry = { id: Date.now(), time: timestamp, user: actorName, role: actorRole, device: alert.device || '' };
 
     switch (action) {
       case 'block':
-        setBlockedIPs(prev => [...prev, alert.sourceIP]);
-        logEntry = { ...logEntry, action: 'Blocked IP', target: alert.sourceIP, alert: alert.type };
-        if (!isAuto) setStats(prev => ({ ...prev, blocked: prev.blocked + 1 }));
+        setBlockedIPs(prev => prev.includes(alert.sourceIP) ? prev : [...prev, alert.sourceIP]);
+        logEntry = { ...logEntry, action: 'Blocked IP', target: alert.sourceIP, alert: alert.type, severity: alert.severity };
+        setStats(prev => ({ ...prev, blocked: prev.blocked + 1 }));
         break;
       case 'isolate': {
         const octet = DEVICE_OCTETS[alert.device] || 100;
@@ -1294,16 +1297,17 @@ export default function IoMTDashboard() {
         break;
       }
       case 'acknowledge':
-        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'acknowledged' } : a));
-        logEntry = { ...logEntry, action: 'Acknowledged', target: `Alert #${alert.id}`, alert: alert.type };
+        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'acknowledged', acknowledgedAt: Date.now(), acknowledgedBy: actorName } : a));
+        logEntry = { ...logEntry, action: 'Acknowledged', target: `Alert #${alert.id}`, alert: alert.type, severity: alert.severity };
         break;
       case 'resolve':
-        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'resolved' } : a));
-        logEntry = { ...logEntry, action: 'Resolved', target: `Alert #${alert.id}`, alert: alert.type };
+        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'resolved', resolvedAt: Date.now(), resolvedBy: actorName } : a));
+        logEntry = { ...logEntry, action: 'Resolved', target: `Alert #${alert.id}`, alert: alert.type, severity: alert.severity };
         break;
       case 'unblock':
         setBlockedIPs(prev => prev.filter(ip => ip !== alert.sourceIP));
-        logEntry = { ...logEntry, action: 'Unblocked IP', target: alert.sourceIP, alert: alert.type };
+        setStats(prev => ({ ...prev, blocked: Math.max(0, prev.blocked - 1) }));
+        logEntry = { ...logEntry, action: 'Unblocked IP', target: alert.sourceIP, alert: alert.type, severity: alert.severity };
         break;
       case 'restore': {
         const octet2 = DEVICE_OCTETS[alert.device] || 100;
@@ -2214,7 +2218,7 @@ ${[
   <tr><td>Engineer</td><td><strong>${currentUser?.name||'—'}</strong> · ${currentUser?.title||'ML / Data Engineer'}</td></tr>
   <tr><td>Model</td><td>LightGBM v2.0 · Multi-class classifier</td></tr>
   <tr><td>Classes</td><td>Benign · DDoS · DoS · Recon · Spoofing · MQTT</td></tr>
-  <tr><td>Feature Count</td><td>56 network flow features (CICIoMT2024 dataset)</td></tr>
+  <tr><td>Feature Count</td><td>44 network flow features (CICIoMT2024 dataset)</td></tr>
   <tr><td>Training Dataset</td><td>CIC IoMT 2024 — WiFi + MQTT traffic</td></tr>
 </table>
 </div>
@@ -2261,7 +2265,7 @@ ${[
   {n:1,title:'Threshold Optimisation',text:`Current minimum confidence threshold is set to ${alertThreshold}%. Analysis shows ${alerts.filter(a=>a.confidence<80).length} alerts below 80% confidence — consider raising threshold to 88% to reduce false positives while maintaining recall on critical attacks.`},
   {n:2,title:'Class Imbalance',text:'The CICIoMT2024 training set is DDoS-heavy. Recommend re-sampling with SMOTE or class weighting adjustment for Spoofing and MQTT classes, which are under-represented but high-impact.'},
   {n:3,title:'Feature Drift',text:'Monitor for concept drift in production traffic vs. training data. Schedule quarterly model re-evaluation with updated network traffic captures from the live hospital environment.'},
-  {n:4,title:'Explainability',text:'Use SHAP values to verify top features driving Spoofing/MQTT classifications. Ensure model is not over-relying on transient packet timing features that may not generalise.'},
+  {n:4,title:'Explainability',text:'Audit top feature importance scores to verify the key drivers behind Spoofing and MQTT classifications. Ensure the model is not over-relying on transient packet timing features that may not generalise to live hospital traffic.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
       return pageShell('#22c55e','ML Model Performance Report','IoMT SOC · Machine Learning & Data Engineering',`ML-${incidentId}`,body);
@@ -2835,15 +2839,16 @@ ${[
               const critCount  = alerts.filter(a=>a.severity==='critical'&&a.status==='active').length;
               const highCount  = alerts.filter(a=>a.severity==='high'&&a.status==='active').length;
               const resolvedCount = alerts.filter(a=>a.status==='resolved'||a.status==='mitigated').length;
-              // MTTD: avg gap between consecutive alert timestamps (seconds → minutes)
-              const alertTimes = alerts.map(a=>a.timestamp?.getTime()).filter(Boolean).sort((a,b)=>a-b);
-              const gaps = alertTimes.slice(1).map((t,i)=>(t-alertTimes[i])/60000);
-              const mttd = gaps.length ? (gaps.reduce((s,v)=>s+v,0)/gaps.length).toFixed(1) : '—';
-              // MTTR: avg time from alert creation to resolved/mitigated
-              const resolvedAlerts = alerts.filter(a=>a.status==='resolved'||a.status==='mitigated');
+              // MTTD: time from alert creation to first acknowledgement (proxy for detection-to-awareness)
+              const ackedAlerts = alerts.filter(a=>a.acknowledgedAt && a.createdAt);
+              const mttd = ackedAlerts.length
+                ? (ackedAlerts.reduce((s,a)=>s+(a.acknowledgedAt-a.createdAt),0)/ackedAlerts.length/60000).toFixed(1)
+                : alerts.length ? '< 0.1' : '—';
+              // MTTR: avg time from alert creation to resolved
+              const resolvedAlerts = alerts.filter(a=>(a.status==='resolved'||a.status==='mitigated')&&a.resolvedAt&&a.createdAt);
               const mttr = resolvedAlerts.length
-                ? (resolvedAlerts.reduce((s,a)=>s+((Date.now()-a.timestamp?.getTime())||0),0)/resolvedAlerts.length/60000).toFixed(1)
-                : '—';
+                ? (resolvedAlerts.reduce((s,a)=>s+(a.resolvedAt-a.createdAt),0)/resolvedAlerts.length/60000).toFixed(1)
+                : responseLog.filter(r=>r.action==='Resolved').length > 0 ? '< 1.0' : '—';
               const grcAvg = Math.round(grcFrameworks.reduce((s,f)=>s+f.score,0)/grcFrameworks.length);
               const threatLevel = critCount >= 3 ? 'CRITICAL' : critCount >= 1 ? 'ELEVATED' : highCount >= 2 ? 'GUARDED' : 'LOW';
               const threatLevelColor = {CRITICAL:'#ef4444',ELEVATED:'#f97316',GUARDED:'#eab308',LOW:'#22c55e'}[threatLevel];
@@ -2865,22 +2870,49 @@ ${[
                     </div>
                   </div>
 
-                  {/* KPI row — 3 cards, generous padding */}
-                  <div className="grid grid-cols-3 gap-4">
+                  {/* KPI row — MTTD | MTTR | Blocked | GRC */}
+                  <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label:'Mean Time to Detect',  value:`${mttd} min`, sub:'Target < 5 min',  color:'#06b6d4', ok: parseFloat(mttd)<5 },
-                      { label:'Mean Time to Respond', value:`${mttr} min`, sub:'Target < 15 min', color:'#8b5cf6', ok: parseFloat(mttr)<15 },
-                      { label:'GRC Compliance Score', value:`${grcAvg}%`,  sub:`${grcFrameworks.length} frameworks`, color: grcAvg>=75?'#22c55e':grcAvg>=55?'#eab308':'#ef4444', ok: grcAvg>=75 },
+                      { label:'Mean Time to Detect',  value:`${mttd} min`, sub: mttd==='—' ? 'Ack an alert to calculate' : 'Target < 5 min',  color:'#06b6d4', ok: mttd!=='—'&&parseFloat(mttd)<5 },
+                      { label:'Mean Time to Respond', value:`${mttr} min`, sub: mttr==='—' ? 'Resolve an alert to calculate' : 'Target < 15 min', color:'#8b5cf6', ok: mttr!=='—'&&parseFloat(mttr)<15 },
+                      { label:'IPs Blocked',           value:blockedIPs.length, sub:`${responseLog.filter(r=>r.action==='Blocked IP').length} block actions logged`, color:'#ef4444', ok: true },
+                      { label:'GRC Overall Score',     value:`${grcAvg}%`,  sub:`${grcFrameworks.filter(f=>f.score>=75).length}/${grcFrameworks.length} frameworks passing`, color: grcAvg>=75?'#22c55e':grcAvg>=55?'#eab308':'#ef4444', ok: grcAvg>=75 },
                     ].map((k,i)=>(
-                      <div key={i} className="rounded-xl border p-5" style={{backgroundColor:k.color+'0d',borderColor:k.color+'33'}}>
-                        <p className="text-base text-slate-400 mb-2 uppercase tracking-wide">{k.label}</p>
-                        <p className="text-3xl font-black mb-1" style={{color:k.color}}>{k.value}</p>
+                      <div key={i} className="rounded-xl border p-4" style={{backgroundColor:k.color+'0d',borderColor:k.color+'33'}}>
+                        <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">{k.label}</p>
+                        <p className="text-2xl font-black mb-1" style={{color:k.color}}>{k.value}</p>
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:k.ok?'#22c55e':'#ef4444'}}/>
-                          <p className="text-base text-slate-500">{k.sub}</p>
+                          <p className="text-xs text-slate-500">{k.sub}</p>
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* GRC per-framework breakdown */}
+                  <div className="rounded-xl border border-slate-700/40 bg-slate-800/20 p-4">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-3">GRC Framework Breakdown — Pass / Fail Status</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {grcFrameworks.map(fw=>{
+                        const color = fw.score>=75?'#22c55e':fw.score>=55?'#eab308':'#ef4444';
+                        const label = fw.score>=75?'PASSING':fw.score>=55?'PARTIAL':'FAILING';
+                        return (
+                          <div key={fw.id} className="rounded-lg border p-3" style={{borderColor:color+'33',background:color+'08'}}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-slate-300">{fw.name}</span>
+                              <span className="text-xs font-black px-2 py-0.5 rounded" style={{background:color+'22',color}}>{label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{width:fw.score+'%',background:color}}/>
+                              </div>
+                              <span className="text-xs font-black" style={{color}}>{fw.score}%</span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1.5">{fw.passing}/{fw.controls} controls · {fw.critical} critical gaps</p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Alert summary + framework scores — 2 columns */}
@@ -5598,17 +5630,29 @@ ${[
                     {responseLog.length === 0 ? (
                       <div className="px-4 py-6 text-center text-slate-500 text-sm">No actions logged this shift yet.</div>
                     ) : responseLog.slice(0, 10).map((log, i) => {
-                      const member = SOC_TEAM.find(m => m.name === log.user) || SOC_TEAM[0];
+                      const member = SOC_TEAM.find(m => m.username === log.user || m.name === log.user);
+                      const avatarBg = member?.color || '#6366f1';
+                      const initials = (log.user||'AU').split(/[\s_]/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                      const actionColor = log.action?.includes('Block')?'#ef4444':log.action?.includes('Isolated')?'#8b5cf6':log.action?.includes('Resolved')?'#22c55e':log.action?.includes('Ack')?'#f59e0b':'#94a3b8';
+                      const sevBadge = log.severity ? {critical:'#ef4444',high:'#f97316',medium:'#eab308',low:'#22c55e'}[log.severity] : null;
                       return (
-                        <div key={i} className="px-4 py-2.5 flex items-center gap-3">
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                            style={{ backgroundColor: member.color + '33', color: member.color }}>
-                            {member.avatar}
+                        <div key={i} className="px-4 py-2.5 flex items-center gap-3 hover:bg-slate-800/30">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                            style={{ backgroundColor: avatarBg + '33', color: avatarBg, border: `1px solid ${avatarBg}44` }}>
+                            {initials}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-xs font-semibold" style={{ color: member.color }}>{log.user}</span>
-                            <span className="text-xs text-slate-400 ml-2">{log.action}</span>
-                            {log.target && <span className="text-xs text-slate-500 ml-1">→ {log.target}</span>}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold" style={{ color: avatarBg }}>{log.user}</span>
+                              {log.role && <span className="text-xs text-slate-600">({log.role})</span>}
+                              <span className="text-xs font-semibold" style={{color:actionColor}}>{log.action}</span>
+                              {sevBadge && <span className="text-xs px-1.5 rounded font-bold" style={{background:sevBadge+'22',color:sevBadge}}>{log.severity?.toUpperCase()}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {log.target && <span className="text-xs text-slate-400">→ <span className="font-mono text-slate-300">{log.target}</span></span>}
+                              {log.device && <span className="text-xs text-slate-500">· {log.device}</span>}
+                              {log.alert && <span className="text-xs text-slate-600">· {log.alert}</span>}
+                            </div>
                           </div>
                           <span className="text-xs text-slate-600 flex-shrink-0">{log.time}</span>
                         </div>
