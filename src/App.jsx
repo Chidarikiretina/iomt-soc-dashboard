@@ -731,30 +731,20 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
   );
 }
 
-// Wipe any localStorage keys that were written during a crash (bad data)
-try {
-  ['iomt_alerts_v1','iomt_reslog_v1','iomt_blocked_v1','iomt_geo_v1','iomt_heatmap_v1','iomt_trend_v1'].forEach(k => {
-    const s = localStorage.getItem(k);
-    if (!s) return;
-    try { const p = JSON.parse(s); if (p === null || (typeof p !== 'object')) { localStorage.removeItem(k); } }
-    catch { localStorage.removeItem(k); }
-  });
-} catch {}
-
 export default function IoMTDashboard() {
   const [currentUser, setCurrentUser] = useState(() => {
     try { const s = localStorage.getItem('iomt_user'); return s ? JSON.parse(s) : null; } catch { return null; }
   });
   const [isLive, setIsLive] = useState(true);
   const [trafficHistory, setTrafficHistory] = useState([]);
-  const [alerts, setAlerts] = useState(() => { try { const s = localStorage.getItem('iomt_alerts_v1'); const p = s ? JSON.parse(s) : null; return Array.isArray(p) ? p : []; } catch { return []; } });
+  const [alerts, setAlerts] = useState([]);
   const [stats, setStats] = useState({ totalPackets: 0, anomalies: 0, blocked: 0, devices: 4 });
   const [deviceStatus, setDeviceStatus] = useState({});
   const [confidenceScore, setConfidenceScore] = useState(98.30);
   const [alertThreshold, setAlertThreshold]   = useState(90);
   const [fpSuppressions, setFpSuppressions]   = useState([]); // [{key, type, device, addedAt}]
   const [suppressedCount, setSuppressedCount] = useState(0);
-  const [liveGeoHits, setLiveGeoHits]         = useState(() => { try { const s = localStorage.getItem('iomt_geo_v1'); const p = s ? JSON.parse(s) : null; return (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}; } catch { return {}; } });
+  const [liveGeoHits, setLiveGeoHits]         = useState({});
 
   // ── WebSocket callbacks (stable refs so hook doesn't re-subscribe) ────────────
   // Refs hold the latest callback; stable wrappers pass to the hook so it never
@@ -899,9 +889,9 @@ export default function IoMTDashboard() {
   // Alert Response States
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
-  const [responseLog, setResponseLog] = useState(() => { try { const s = localStorage.getItem('iomt_reslog_v1'); const p = s ? JSON.parse(s) : null; return Array.isArray(p) ? p : []; } catch { return []; } });
+  const [responseLog, setResponseLog] = useState([]);
   const [autoResponse, setAutoResponse] = useState({ critical: true, high: true });
-  const [blockedIPs, setBlockedIPs] = useState(() => { try { const s = localStorage.getItem('iomt_blocked_v1'); const p = s ? JSON.parse(s) : null; return Array.isArray(p) ? p : []; } catch { return []; } });
+  const [blockedIPs, setBlockedIPs] = useState([]);
   const [isolatedDevices, setIsolatedDevices] = useState([]);
   const [appliedPatches, setAppliedPatches]   = useState({});   // { [device]: { [patchId]: boolean } }
   const [alertFilter, setAlertFilter] = useState('all');
@@ -1049,7 +1039,7 @@ export default function IoMTDashboard() {
   const [worldPaths, setWorldPaths] = useState([]);
 
   // ── Trend history for Analytics tab (persisted) ───────────────────────────
-  const [trendHistory, setTrendHistory] = useState(() => { try { const s = localStorage.getItem('iomt_trend_v1'); const p = s ? JSON.parse(s) : null; return Array.isArray(p) ? p : []; } catch { return []; } });
+  const [trendHistory, setTrendHistory] = useState([]);
 
   // Persist key state to localStorage
   useEffect(() => { try { if (Array.isArray(alerts))      localStorage.setItem('iomt_alerts_v1',  JSON.stringify(alerts.slice(0, 50))); } catch {} }, [alerts]);
@@ -1105,7 +1095,7 @@ export default function IoMTDashboard() {
   const [pktFilterProto,  setPktFilterProto]    = useState('all');
   const [pktFilterType,   setPktFilterType]     = useState('all');
   const [pktFilterDevice, setPktFilterDevice]   = useState('all');
-  const [heatmapData, setHeatmapData]           = useState(() => { try { const s = localStorage.getItem('iomt_heatmap_v1'); const p = s ? JSON.parse(s) : null; return (Array.isArray(p) && p.length > 0) ? p : emptyHeatmap; } catch { return emptyHeatmap; } });
+  const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
   useEffect(() => { try { if (Array.isArray(heatmapData) && heatmapData.length > 0) localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
