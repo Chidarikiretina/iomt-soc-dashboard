@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || '${API_BASE}';
 import { geoEquirectangular, geoPath } from 'd3-geo';
@@ -243,7 +243,7 @@ const DEVICE_NODES = [
 ];
 
 // ── HIPAA Compliance Data ──────────────────────────────────────────────────────
-const hipaaRules = [
+const BASE_HIPAA_RULES = [
   {
     id: 'privacy', name: 'Privacy Rule', score: 78, icon: 'lock',
     controls: [
@@ -293,14 +293,70 @@ const phiAccessLog = [
   { id: 6, user: 'unknown@10.0.0.99',    action: 'READ',   resource: 'Medication Schedule',     device: 'Infusion Pump',  ts: '09:14:22', status: 'denied'  },
 ];
 
-// ── GRC Data ──────────────────────────────────────────────────────────────────
-const grcFrameworks = [
+// ── GRC Base Data (baseline scores reflect static audit findings) ──────────────
+const BASE_GRC = [
   { id:'hipaa',    name:'HIPAA',            score:74, controls:42,  passing:31, critical:3, color:'#06b6d4', reg:'Health Insurance Portability & Accountability Act' },
   { id:'nist_csf', name:'NIST CSF v1.1',   score:68, controls:108, passing:73, critical:5, color:'#8b5cf6', reg:'NIST Cybersecurity Framework v1.1' },
   { id:'hitech',   name:'HITECH',           score:81, controls:28,  passing:23, critical:1, color:'#22c55e', reg:'Health IT for Economic & Clinical Health Act' },
   { id:'fda',      name:'FDA 21 CFR Pt 11', score:55, controls:34,  passing:19, critical:6, color:'#f97316', reg:'FDA Electronic Records / Electronic Signatures' },
   { id:'iso27001', name:'ISO 27001:2022',   score:62, controls:93,  passing:58, critical:4, color:'#eab308', reg:'Information Security Management System' },
 ];
+
+// ── Live GRC scoring: deducts from baseline as live attacks accumulate ─────────
+// Each attack type maps to the frameworks it most severely violates.
+// Penalties are capped so one attack type can't wipe a framework on its own.
+function computeGrcScores(alerts) {
+  const recent = alerts.slice(0, 60); // use up to 60 most recent alerts
+  const c = { DDoS: 0, DoS: 0, Spoofing: 0, Recon: 0, MQTT: 0 };
+  recent.forEach(a => { if (c[a.type] !== undefined) c[a.type]++; });
+
+  // p(type, pointsPerAlert, maxPenalty)
+  const p = (type, pts, max) => Math.min(c[type] * pts, max);
+
+  const penalties = {
+    // HIPAA — PHI confidentiality: Spoofing (MiTM = PHI exposure) hits hardest
+    hipaa:    p('Spoofing',4,20) + p('DDoS',3,15) + p('MQTT',3,12) + p('DoS',2,10) + p('Recon',2,8),
+    // NIST CSF — availability + detection controls: DDoS hits hardest
+    nist_csf: p('DDoS',4,20) + p('DoS',3,15) + p('Recon',3,12) + p('Spoofing',2,10) + p('MQTT',2,8),
+    // HITECH — breach disclosure: same PHI focus as HIPAA
+    hitech:   p('Spoofing',4,18) + p('MQTT',3,12) + p('DDoS',2,10) + p('DoS',2,8) + p('Recon',1,5),
+    // FDA 21 CFR — device integrity/audit trails: MQTT injection hits hardest
+    fda:      p('MQTT',5,25) + p('DoS',3,12) + p('Spoofing',3,10) + p('DDoS',2,8) + p('Recon',1,4),
+    // ISO 27001 — general InfoSec: balanced across all attack types
+    iso27001: p('DDoS',3,15) + p('Spoofing',3,12) + p('DoS',2,10) + p('MQTT',2,8) + p('Recon',2,8),
+  };
+
+  return BASE_GRC.map(fw => {
+    const penalty  = Math.min(penalties[fw.id] || 0, fw.score - 20); // never drop below 20
+    const score    = Math.max(20, fw.score - penalty);
+    const ratio    = score / fw.score;
+    const passing  = Math.max(0, Math.round(fw.passing * ratio));
+    const extra    = Math.min(4, Math.floor(penalty / 8));            // extra critical gaps per 8pts penalty
+    return { ...fw, score, passing, critical: fw.critical + extra };
+  });
+}
+
+// ── Live HIPAA rule scoring ────────────────────────────────────────────────────
+function computeHipaaScores(alerts) {
+  const recent = alerts.slice(0, 60);
+  const c = { DDoS: 0, DoS: 0, Spoofing: 0, Recon: 0, MQTT: 0 };
+  recent.forEach(a => { if (c[a.type] !== undefined) c[a.type]++; });
+  const p = (type, pts, max) => Math.min(c[type] * pts, max);
+
+  const rulePenalties = {
+    // Privacy Rule: PHI disclosure risk — Spoofing (MiTM) and Recon are primary threats
+    privacy:  p('Spoofing',4,18) + p('Recon',2,10) + p('MQTT',2,8),
+    // Security Rule: transmission security, access control, audit — all attacks relevant
+    security: p('DDoS',3,15) + p('DoS',3,12) + p('Spoofing',4,16) + p('MQTT',2,8) + p('Recon',2,8),
+    // Breach Notification: any confirmed attack is a potential reportable breach
+    breach:   p('DDoS',1,8) + p('DoS',1,8) + p('Spoofing',2,12) + p('MQTT',1,6) + p('Recon',1,5),
+  };
+
+  return BASE_HIPAA_RULES.map(rule => {
+    const penalty = Math.min(rulePenalties[rule.id] || 0, rule.score - 20);
+    return { ...rule, score: Math.max(20, rule.score - penalty) };
+  });
+}
 
 const riskRegister = [
   { id:'R001', cat:'Cyber',       title:'Ransomware attack on IoMT devices',              l:4, i:5, treatment:'Mitigate', owner:'CISO',       status:'open',        due:'2026-04-01', linked:'Infusion Pump' },
@@ -1115,6 +1171,10 @@ export default function IoMTDashboard() {
   const [csvAnalysis, setCsvAnalysis]   = useState(null);
   const [csvLoading, setCsvLoading]     = useState(false);
   const [csvDragOver, setCsvDragOver]   = useState(false);
+
+  // ── Live-computed GRC & HIPAA scores (recalculated whenever alerts change) ───
+  const grcFrameworks = useMemo(() => computeGrcScores(alerts), [alerts]);
+  const hipaaRules    = useMemo(() => computeHipaaScores(alerts), [alerts]);
 
   // Attack distribution — computed live from WebSocket alerts
   const ATTACK_COLORS = { DDoS:'#ef4444', DoS:'#f97316', Spoofing:'#eab308', MQTT:'#8b5cf6', Recon:'#3b82f6', Benign:'#22c55e' };
