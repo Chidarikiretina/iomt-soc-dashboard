@@ -163,6 +163,24 @@ const deviceRiskData = {
   'ECG Monitor':     { score:45, level:'medium',   factors:['Unencrypted data in transit','PHI data exposure','Weak authentication'], patches:1 },
 };
 
+// Patch data at module level so the remediation modal can access it without the risk-tab IIFE
+const DEVICE_PATCH_DATA = {
+  'Infusion Pump': [
+    { id:'fw-3.2.0',   label:'Apply Firmware 3.2.0 (patches CVE-2023-1234, CVSS 9.1)', priority:'critical', reduction:14 },
+    { id:'cred-reset', label:'Rotate all default credentials',                           priority:'critical', reduction:10 },
+    { id:'port-close', label:'Close management port 8443',                               priority:'high',     reduction:6  },
+  ],
+  'Heart Monitor': [
+    { id:'os-upgrade', label:'Upgrade OS to Windows 10 IoT LTSC',                       priority:'critical', reduction:12 },
+    { id:'tls-enable', label:'Enforce TLS 1.2 minimum on all interfaces',               priority:'high',     reduction:7  },
+    { id:'cve-4567',   label:'Apply CVE-2023-4567 vendor hotfix',                       priority:'high',     reduction:6  },
+  ],
+  'Pulse Oximeter': [],
+  'ECG Monitor': [
+    { id:'tls13',      label:'Enable TLS 1.3 and rotate authentication tokens',         priority:'high',     reduction:8  },
+  ],
+};
+
 // Initial audit timestamps — match the old hardcoded "X days ago" strings
 const AUDIT_DEFAULTS = {
   'Infusion Pump':  Date.now() - 42 * 86400_000,
@@ -1216,6 +1234,65 @@ export default function IoMTDashboard() {
     });
   };
 
+  // ── Dismissed risk factors — analyst can mark a static factor as resolved ──
+  const [dismissedFactors, setDismissedFactors] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('iomt_dismissed_factors_v1') || 'null');
+      return s && typeof s === 'object' ? s : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('iomt_dismissed_factors_v1', JSON.stringify(dismissedFactors)); } catch {}
+  }, [dismissedFactors]);
+
+  const dismissFactor = (device, factor) => {
+    setDismissedFactors(prev => ({
+      ...prev,
+      [device]: [...(prev[device] || []), factor],
+    }));
+  };
+  const restoreFactors = (device) => {
+    setDismissedFactors(prev => ({ ...prev, [device]: [] }));
+  };
+
+  // ── Live risk factors — auto-derived from recent alerts targeting each device ──
+  const LIVE_FACTOR_MAP = {
+    DDoS:     'Active DDoS flood detected',
+    DoS:      'Active DoS attack — service disruption risk',
+    Spoofing: 'Spoofing / MiTM attack detected — PHI exposure risk',
+    MQTT:     'Malicious MQTT payload observed',
+    Recon:    'Network reconnaissance activity detected',
+  };
+  const liveRiskFactors = useMemo(() => {
+    const result = {};
+    const recent = alerts.slice(0, 30);
+    Object.keys(deviceRiskData).forEach(dev => {
+      const devAlerts = recent.filter(a => a.device === dev);
+      const types = [...new Set(devAlerts.map(a => a.type))];
+      const factors = types.filter(t => LIVE_FACTOR_MAP[t]).map(t => LIVE_FACTOR_MAP[t]);
+      if (devAlerts.some(a => a.severity === 'critical')) factors.push('Critical-severity attack active on this device');
+      result[dev] = factors;
+    });
+    return result;
+  }, [alerts]);
+
+  // ── Isolation metadata — records when/why each device was quarantined ──────────
+  const [isolationMeta, setIsolationMeta] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('iomt_isolation_meta_v1') || 'null');
+      return s && typeof s === 'object' ? s : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('iomt_isolation_meta_v1', JSON.stringify(isolationMeta)); } catch {}
+  }, [isolationMeta]);
+
+  // ── Remediation/restore modal state ──────────────────────────────────────────
+  const [restoreModal, setRestoreModal] = useState(null);
+  // restoreModal = { device: string, meta: { ts, trigger, severity } | null }
+  const [remediationChecks, setRemediationChecks] = useState({});
+  // { [stepId]: boolean } — tracks checkbox state in the remediation modal
+
   // Attack distribution — computed live from WebSocket alerts
   const ATTACK_COLORS = { DDoS:'#ef4444', DoS:'#f97316', Spoofing:'#eab308', MQTT:'#8b5cf6', Recon:'#3b82f6', Benign:'#22c55e' };
   const attackDistribution = (() => {
@@ -1431,6 +1508,10 @@ export default function IoMTDashboard() {
           ...prev,
         ]);
         setAlerts(prev => prev.map(a => a.id === alert.id && !a.respondedAt ? { ...a, respondedAt: Date.now() } : a));
+        setIsolationMeta(prev => ({
+          ...prev,
+          [alert.device]: { ts: Date.now(), trigger: alert.type, severity: alert.severity, msg: alert.message || alert.type },
+        }));
         logEntry = { ...logEntry, action: `Isolated → VLAN 99 | IP: ${newIP} | Subnet block: ${VLAN_DEFS[99].subnet}`, target: alert.device, alert: alert.type };
         break;
       }
@@ -1459,6 +1540,7 @@ export default function IoMTDashboard() {
           n.device === alert.device ? { ...n, status: 'normal', vlan: 20, vlanName: 'IoMT Medical' } : n
         ));
         setAclRules(prev => prev.filter(r => r.device !== alert.device));
+        setIsolationMeta(prev => { const next = { ...prev }; delete next[alert.device]; return next; });
         logEntry = { ...logEntry, action: `Restored to VLAN 20 | IP: ${origIP} | ACL rules removed`, target: alert.device, alert: alert.type };
         break;
       }
@@ -4071,7 +4153,14 @@ ${[
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold border uppercase ${sc2.badge}`}>{liveLevel}</span>
                                     {hasLive && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-300 border border-red-500/40 uppercase">LIVE</span>}
-                                    {isIsolated && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-violet-500/20 text-violet-300 border border-violet-500/40 uppercase">ISOLATED</span>}
+                                    {isIsolated && (
+                                      <span
+                                        className="text-xs px-2 py-0.5 rounded-full font-bold bg-violet-500/20 text-violet-300 border border-violet-500/40 uppercase"
+                                        title={isolationMeta[device]?.trigger ? `Triggered by ${isolationMeta[device].trigger} (${isolationMeta[device].severity})` : 'Manually isolated'}
+                                      >
+                                        ISOLATED{isolationMeta[device]?.ts ? ` · ${timeAgo(isolationMeta[device].ts)}` : ''}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500 font-mono">
                                     <span>{detail.ip||'—'}</span>
@@ -4096,8 +4185,25 @@ ${[
                                 </div>
                               )}
 
+                              {/* Quarantine reason — shown when isolated */}
+                              {isIsolated && (
+                                <div className="mx-4 mt-3 p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-bold text-violet-300 uppercase tracking-wider">Quarantine Reason</span>
+                                    {isolationMeta[device]?.ts && (
+                                      <span className="text-xs text-violet-400/60 font-mono ml-auto">{timeAgo(isolationMeta[device].ts)}</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-300">
+                                    {isolationMeta[device]
+                                      ? `${isolationMeta[device].severity?.toUpperCase()} severity ${isolationMeta[device].trigger} attack detected — device moved to VLAN 99 (Quarantine). Awaiting remediation sign-off.`
+                                      : 'Manually isolated by SOC analyst — device moved to VLAN 99 (Quarantine).'}
+                                  </p>
+                                </div>
+                              )}
+
                               {/* System info */}
-                              <div className={`grid grid-cols-2 gap-px bg-slate-800/40 border-b border-slate-800/60 ${hasLive?'mt-3':''}`}>
+                              <div className={`grid grid-cols-2 gap-px bg-slate-800/40 border-b border-slate-800/60 ${hasLive||isIsolated?'mt-3':''}`}>
                                 {[['OS',detail.os||'—'],['Firmware',detail.fw||'—']].map(([k,v])=>(
                                   <div key={k} className="bg-slate-900/30 px-3 py-2">
                                     <div className="text-xs text-slate-500 uppercase tracking-wider">{k}</div>
@@ -4108,13 +4214,43 @@ ${[
 
                               {/* Risk factors */}
                               <div className="p-4 space-y-1.5">
-                                <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Risk Factors</p>
-                                {risk.factors.map((f,i)=>(
-                                  <div key={i} className="flex items-start gap-2 text-xs">
-                                    <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5"/>
-                                    <span className="text-slate-300">{f}</span>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Risk Factors</p>
+                                  {(dismissedFactors[device]||[]).length > 0 && (
+                                    <button onClick={()=>restoreFactors(device)} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                                      restore {(dismissedFactors[device]).length} resolved
+                                    </button>
+                                  )}
+                                </div>
+                                {/* Static factors — hover to dismiss */}
+                                {risk.factors
+                                  .filter(f => !(dismissedFactors[device]||[]).includes(f))
+                                  .map((f,i)=>(
+                                    <div key={i} className="flex items-start gap-2 text-xs group">
+                                      <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5"/>
+                                      <span className="text-slate-300 flex-1">{f}</span>
+                                      <button
+                                        onClick={()=>dismissFactor(device, f)}
+                                        title="Mark as resolved"
+                                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-emerald-400 transition-all text-xs leading-none flex-shrink-0"
+                                      >✓</button>
+                                    </div>
+                                  ))
+                                }
+                                {/* Live factors — auto-derived from recent alerts */}
+                                {(liveRiskFactors[device]||[]).map((f,i)=>(
+                                  <div key={'live-'+i} className="flex items-start gap-2 text-xs">
+                                    <span className="w-3 h-3 flex-shrink-0 mt-0.5 flex items-center justify-center">
+                                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block"/>
+                                    </span>
+                                    <span className="text-red-300 flex-1">{f}</span>
+                                    <span className="text-red-400/50 font-mono text-xs flex-shrink-0">LIVE</span>
                                   </div>
                                 ))}
+                                {risk.factors.filter(f=>!(dismissedFactors[device]||[]).includes(f)).length === 0 &&
+                                 (liveRiskFactors[device]||[]).length === 0 && (
+                                  <p className="text-xs text-emerald-400/60 italic">All known risk factors resolved</p>
+                                )}
                               </div>
 
                               {/* CVEs */}
@@ -4193,16 +4329,15 @@ ${[
                                     icon:  isIsolated ? '🔓' : '🔒',
                                     cls:   isIsolated ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 hover:bg-violet-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20',
                                     fn: () => {
-                                      const nowIsolated = !isIsolated;
-                                      setIsolatedDevices(prev => nowIsolated ? [...prev, device] : prev.filter(d => d !== device));
-                                      setResponseLog(prev => [{
-                                        id: Date.now(),
-                                        action: nowIsolated ? 'Device Isolated → VLAN 99' : 'Device Restored → VLAN 20',
-                                        target: device,
-                                        alert: topAttack || 'Manual action',
-                                        time: new Date().toLocaleTimeString(),
-                                        user: currentUser?.name || 'SOC Analyst',
-                                      }, ...prev.slice(0, 49)]);
+                                      if (isIsolated) {
+                                        // Open remediation modal — restore only after checklist complete
+                                        setRestoreModal({ device, meta: isolationMeta[device] || null });
+                                        setRemediationChecks({});
+                                      } else {
+                                        // Isolate via handleQuickAction so ACLs, topology, metadata all update
+                                        const syntheticAlert = { id: Date.now(), device, type: topAttack || 'Manual', severity: 'high', sourceIP: detail.ip || '0.0.0.0' };
+                                        handleQuickAction('isolate', syntheticAlert);
+                                      }
                                     },
                                   },
                                   {
@@ -6565,6 +6700,165 @@ ${[
       </footer>
 
       {/* ==================== MODALS ==================== */}
+
+      {/* ── Remediation & Restore Modal ────────────────────────────────────────── */}
+      {restoreModal && (() => {
+        const { device: dev, meta } = restoreModal;
+        const patches = DEVICE_PATCH_DATA[dev] || [];
+        const verifySteps = [
+          { id: 'threat_clear',  label: 'Confirm the triggering threat has been neutralised or mitigated' },
+          { id: 'no_c2',         label: 'Verify no active C2 connections remain from this device' },
+          { id: 'audit_review',  label: 'Review device access logs — no unauthorized activity found' },
+          { id: 'supervisor',    label: 'Supervisor / CISO sign-off obtained for this restoration' },
+        ];
+        const allSteps = [...patches.map(p => p.id), ...verifySteps.map(s => s.id)];
+        const allChecked = allSteps.every(id => remediationChecks[id]);
+        const critPatches = patches.filter(p => p.priority === 'critical');
+        const critAllApplied = critPatches.every(p => remediationChecks[p.id]);
+
+        const severityColor = { critical:'#ef4444', high:'#f97316', medium:'#eab308', low:'#22c55e', manual:'#6366f1' };
+        const sc = severityColor[meta?.severity] || '#6366f1';
+
+        return (
+          <div
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9100 }}
+            onClick={() => setRestoreModal(null)}
+          >
+            <div
+              style={{ background:'#0d1525', border:'1px solid #334155', borderRadius:16, width:560, maxWidth:'95vw', maxHeight:'90vh', overflow:'auto', boxShadow:'0 25px 60px rgba(0,0,0,0.7)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid #1e293b' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+                  <span style={{ fontSize:22 }}>🔒</span>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em' }}>Quarantine Release Authorization</div>
+                    <div style={{ fontSize:18, fontWeight:700, color:'#f1f5f9' }}>{dev}</div>
+                  </div>
+                  <button onClick={() => setRestoreModal(null)} style={{ marginLeft:'auto', background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:18, lineHeight:1 }}>✕</button>
+                </div>
+
+                {/* Isolation summary */}
+                <div style={{ background:'rgba(139,92,246,0.1)', border:'1px solid rgba(139,92,246,0.25)', borderRadius:8, padding:'10px 12px' }}>
+                  {meta ? (
+                    <p style={{ fontSize:13, color:'#cbd5e1', margin:0 }}>
+                      This device was isolated{meta.ts ? ` ${timeAgo(meta.ts)}` : ''} due to a{' '}
+                      <span style={{ color: sc, fontWeight:700 }}>{meta.severity?.toUpperCase()}</span> severity{' '}
+                      <span style={{ color:'#94a3b8', fontWeight:600 }}>{meta.trigger}</span> attack.
+                      Complete all steps below before restoring to VLAN 20.
+                    </p>
+                  ) : (
+                    <p style={{ fontSize:13, color:'#cbd5e1', margin:0 }}>This device was manually isolated. Complete the remediation checklist before restoring.</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding:'20px 24px' }}>
+                {/* Device patches */}
+                {patches.length > 0 && (
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>
+                      Step 1 — Apply Device Patches
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {patches.map(p => {
+                        const checked = !!remediationChecks[p.id];
+                        const pc = p.priority === 'critical' ? '#ef4444' : p.priority === 'high' ? '#f97316' : '#eab308';
+                        return (
+                          <label key={p.id} style={{ display:'flex', alignItems:'flex-start', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:8, border:`1px solid ${checked ? '#22c55e44' : '#1e293b'}`, background: checked ? 'rgba(34,197,94,0.06)' : 'rgba(15,23,42,0.6)' }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => setRemediationChecks(prev => ({ ...prev, [p.id]: e.target.checked }))}
+                              style={{ marginTop:2, accentColor:'#22c55e', width:14, height:14, flexShrink:0 }}
+                            />
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:13, color: checked ? '#86efac' : '#cbd5e1', textDecoration: checked ? 'line-through' : 'none' }}>{p.label}</div>
+                              <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                                <span style={{ fontSize:11, padding:'1px 6px', borderRadius:4, background:`${pc}20`, color:pc, fontWeight:700 }}>{p.priority.toUpperCase()}</span>
+                                <span style={{ fontSize:11, color:'#475569' }}>Risk reduction: −{p.reduction} pts</span>
+                              </div>
+                            </div>
+                            {checked && <span style={{ color:'#22c55e', fontSize:16, flexShrink:0 }}>✓</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {!critAllApplied && (
+                      <p style={{ fontSize:11, color:'#ef4444', marginTop:8 }}>⚠ Critical patches must be applied before restoration is recommended.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Verification checklist */}
+                <div style={{ marginBottom:24 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>
+                    {patches.length > 0 ? 'Step 2 — ' : ''}Pre-Restoration Verification
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {verifySteps.map(s => {
+                      const checked = !!remediationChecks[s.id];
+                      return (
+                        <label key={s.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:`1px solid ${checked ? '#22c55e44' : '#1e293b'}`, background: checked ? 'rgba(34,197,94,0.06)' : 'rgba(15,23,42,0.6)' }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => setRemediationChecks(prev => ({ ...prev, [s.id]: e.target.checked }))}
+                            style={{ accentColor:'#22c55e', width:14, height:14, flexShrink:0 }}
+                          />
+                          <span style={{ fontSize:13, color: checked ? '#86efac' : '#cbd5e1', textDecoration: checked ? 'line-through' : 'none', flex:1 }}>{s.label}</span>
+                          {checked && <span style={{ color:'#22c55e', fontSize:16, flexShrink:0 }}>✓</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Progress indicator */}
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748b', marginBottom:6 }}>
+                    <span>Remediation progress</span>
+                    <span style={{ color: allChecked ? '#22c55e' : '#94a3b8', fontWeight:700 }}>
+                      {allSteps.filter(id => remediationChecks[id]).length} / {allSteps.length} completed
+                    </span>
+                  </div>
+                  <div style={{ height:4, background:'#1e293b', borderRadius:4, overflow:'hidden' }}>
+                    <div style={{ height:'100%', borderRadius:4, background: allChecked ? '#22c55e' : '#6366f1', width:`${(allSteps.filter(id=>remediationChecks[id]).length/allSteps.length)*100}%`, transition:'width 0.3s' }}/>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display:'flex', gap:10 }}>
+                  <button
+                    onClick={() => setRestoreModal(null)}
+                    style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1px solid #334155', background:'transparent', color:'#94a3b8', fontSize:13, fontWeight:600, cursor:'pointer' }}
+                  >
+                    Cancel — Keep Isolated
+                  </button>
+                  <button
+                    disabled={!allChecked}
+                    onClick={() => {
+                      handleQuickAction('restore', { id: Date.now(), device: dev, type: meta?.trigger || 'Manual', severity: meta?.severity || 'manual', sourceIP: '0.0.0.0' });
+                      setRestoreModal(null);
+                      setRemediationChecks({});
+                    }}
+                    style={{
+                      flex:1, padding:'10px 0', borderRadius:10, border:`1px solid ${allChecked ? '#22c55e66' : '#334155'}`,
+                      background: allChecked ? 'rgba(34,197,94,0.15)' : 'rgba(30,41,59,0.5)',
+                      color: allChecked ? '#86efac' : '#475569',
+                      fontSize:13, fontWeight:700, cursor: allChecked ? 'pointer' : 'not-allowed',
+                      transition:'all 0.2s',
+                    }}
+                  >
+                    {allChecked ? '🔓 Restore to VLAN 20' : `Complete all ${allSteps.length - allSteps.filter(id=>remediationChecks[id]).length} remaining steps`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Alert Detail Panel */}
       {showAlertPanel && selectedAlert && (
