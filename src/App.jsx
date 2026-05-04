@@ -942,9 +942,10 @@ export default function IoMTDashboard() {
       pushToast(`${newAlert.severity.toUpperCase()}: ${newAlert.type} on ${newAlert.device}`, newAlert.severity);
     }
 
-    // Auto-response
+    // Auto-response — block IP for high; block + isolate to VLAN 99 for critical
     if (autoResponse.critical && newAlert.severity === 'critical') {
       handleQuickAction('block', newAlert, true);
+      handleQuickAction('isolate', newAlert, true);
     } else if (autoResponse.high && newAlert.severity === 'high') {
       handleQuickAction('block', newAlert, true);
     }
@@ -1413,7 +1414,7 @@ export default function IoMTDashboard() {
       case 'isolate': {
         const octet = DEVICE_OCTETS[alert.device] || 100;
         const newIP = `${VLAN_DEFS[99].cidr}${octet}`;
-        setIsolatedDevices(prev => [...prev, alert.device]);
+        setIsolatedDevices(prev => prev.includes(alert.device) ? prev : [...prev, alert.device]);
         setDeviceStatus(prev => ({
           ...prev,
           [alert.device]: { ...prev[alert.device], status: 'isolated', ip: newIP }
@@ -2984,9 +2985,12 @@ ${[
                 : alerts.length ? '< 0.1' : '—';
               // MTTR: avg time from alert creation to first response action (block/isolate/ack/resolve)
               const respondedAlerts = alerts.filter(a => a.respondedAt && a.createdAt);
-              const mttr = respondedAlerts.length
-                ? (respondedAlerts.reduce((s,a) => s + (a.respondedAt - a.createdAt), 0) / respondedAlerts.length / 60000).toFixed(1)
-                : '—';
+              const mttrMs = respondedAlerts.length
+                ? respondedAlerts.reduce((s,a) => s + (a.respondedAt - a.createdAt), 0) / respondedAlerts.length
+                : null;
+              const mttr = mttrMs === null ? '—'
+                : mttrMs < 60000 ? `${Math.max(1, Math.round(mttrMs / 1000))}s`
+                : (mttrMs / 60000).toFixed(1) + ' min';
               const grcAvg = Math.round(grcFrameworks.reduce((s,f)=>s+f.score,0)/grcFrameworks.length);
               const threatLevel = critCount >= 3 ? 'CRITICAL' : critCount >= 1 ? 'ELEVATED' : highCount >= 2 ? 'GUARDED' : 'LOW';
               const threatLevelColor = {CRITICAL:'#ef4444',ELEVATED:'#f97316',GUARDED:'#eab308',LOW:'#22c55e'}[threatLevel];
@@ -3012,7 +3016,7 @@ ${[
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label:'Mean Time to Detect',  value:`${mttd} min`, sub: mttd==='—' ? 'Ack an alert to calculate' : 'Target < 5 min',  color:'#06b6d4', ok: mttd!=='—'&&parseFloat(mttd)<5 },
-                      { label:'Mean Time to Respond', value:`${mttr} min`, sub: mttr==='—' ? 'Take action on an alert to calculate' : 'Target < 15 min', color:'#8b5cf6', ok: mttr!=='—'&&parseFloat(mttr)<15 },
+                      { label:'Mean Time to Respond', value: mttr === '—' ? '— min' : mttr, sub: mttr==='—' ? 'Take action on an alert to calculate' : 'Target < 15 min', color:'#8b5cf6', ok: mttr!=='—'&&(mttr.endsWith('s')||parseFloat(mttr)<15) },
                       { label:'IPs Blocked',           value:blockedIPs.length, sub:`${responseLog.filter(r=>r.action==='Blocked IP').length} block actions logged`, color:'#ef4444', ok: true },
                       { label:'GRC Overall Score',     value:`${grcAvg}%`,  sub:`${grcFrameworks.filter(f=>f.score>=75).length}/${grcFrameworks.length} frameworks passing`, color: grcAvg>=75?'#22c55e':grcAvg>=55?'#eab308':'#ef4444', ok: grcAvg>=75 },
                     ].map((k,i)=>(
