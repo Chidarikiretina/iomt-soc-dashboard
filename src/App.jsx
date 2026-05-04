@@ -1192,7 +1192,13 @@ export default function IoMTDashboard() {
   const [pktFilterProto,  setPktFilterProto]    = useState('all');
   const [pktFilterType,   setPktFilterType]     = useState('all');
   const [pktFilterDevice, setPktFilterDevice]   = useState('all');
-  const [heatmapData, setHeatmapData]           = useState(emptyHeatmap);
+  const [heatmapData, setHeatmapData]           = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('iomt_heatmap_v1') || 'null');
+      if (Array.isArray(s) && s.length === 7) return s;
+    } catch {}
+    return emptyHeatmap();
+  });
   useEffect(() => { try { if (Array.isArray(heatmapData) && heatmapData.length > 0) localStorage.setItem('iomt_heatmap_v1',JSON.stringify(heatmapData)); } catch {} }, [heatmapData]);
   const [heatmapMetric, setHeatmapMetric]       = useState('traffic');
   const [selectedGeoAttack, setSelectedGeoAttack] = useState(null);
