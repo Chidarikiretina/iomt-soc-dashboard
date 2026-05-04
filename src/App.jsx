@@ -967,7 +967,9 @@ export default function IoMTDashboard() {
   const [responseLog, setResponseLog] = useState([]);
   const [autoResponse, setAutoResponse] = useState({ critical: true, high: true });
   const [blockedIPs, setBlockedIPs] = useState([]);
-  const [isolatedDevices, setIsolatedDevices] = useState([]);
+  const [isolatedDevices, setIsolatedDevices] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('iomt_isolated_v1')); return Array.isArray(s) ? s : []; } catch { return []; }
+  });
   const [appliedPatches, setAppliedPatches]   = useState({});   // { [device]: { [patchId]: boolean } }
   const [alertFilter, setAlertFilter] = useState('all');
 
@@ -1120,6 +1122,7 @@ export default function IoMTDashboard() {
   useEffect(() => { try { if (Array.isArray(alerts))      localStorage.setItem('iomt_alerts_v1',  JSON.stringify(alerts.slice(0, 50))); } catch {} }, [alerts]);
   useEffect(() => { try { if (Array.isArray(responseLog)) localStorage.setItem('iomt_reslog_v1', JSON.stringify(responseLog.slice(0, 50))); } catch {} }, [responseLog]);
   useEffect(() => { try { if (Array.isArray(blockedIPs))  localStorage.setItem('iomt_blocked_v1',JSON.stringify(blockedIPs)); } catch {} }, [blockedIPs]);
+  useEffect(() => { try { if (Array.isArray(isolatedDevices)) localStorage.setItem('iomt_isolated_v1', JSON.stringify(isolatedDevices)); } catch {} }, [isolatedDevices]);
   useEffect(() => { try { if (liveGeoHits && typeof liveGeoHits === 'object') localStorage.setItem('iomt_geo_v1', JSON.stringify(liveGeoHits)); } catch {} }, [liveGeoHits]);
   useEffect(() => { try { if (Array.isArray(trendHistory)) localStorage.setItem('iomt_trend_v1', JSON.stringify(trendHistory.slice(-120))); } catch {} }, [trendHistory]);
 
@@ -1403,6 +1406,7 @@ export default function IoMTDashboard() {
     switch (action) {
       case 'block':
         setBlockedIPs(prev => prev.includes(alert.sourceIP) ? prev : [...prev, alert.sourceIP]);
+        setAlerts(prev => prev.map(a => a.id === alert.id && !a.respondedAt ? { ...a, respondedAt: Date.now() } : a));
         logEntry = { ...logEntry, action: 'Blocked IP', target: alert.sourceIP, alert: alert.type, severity: alert.severity };
         setStats(prev => ({ ...prev, blocked: prev.blocked + 1 }));
         break;
@@ -1425,15 +1429,16 @@ export default function IoMTDashboard() {
           { id: Date.now()+2,  device: alert.device, seq: 30, action: 'DENY',   src: newIP+'/32',          dst: 'any',                proto: 'ip', appliedTo: 'VLAN 99 SVI', time: ts, active: true },
           ...prev,
         ]);
+        setAlerts(prev => prev.map(a => a.id === alert.id && !a.respondedAt ? { ...a, respondedAt: Date.now() } : a));
         logEntry = { ...logEntry, action: `Isolated → VLAN 99 | IP: ${newIP} | Subnet block: ${VLAN_DEFS[99].subnet}`, target: alert.device, alert: alert.type };
         break;
       }
       case 'acknowledge':
-        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'acknowledged', acknowledgedAt: Date.now(), acknowledgedBy: actorName } : a));
+        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'acknowledged', acknowledgedAt: Date.now(), acknowledgedBy: actorName, respondedAt: a.respondedAt || Date.now() } : a));
         logEntry = { ...logEntry, action: 'Acknowledged', target: `Alert #${alert.id}`, alert: alert.type, severity: alert.severity };
         break;
       case 'resolve':
-        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'resolved', resolvedAt: Date.now(), resolvedBy: actorName } : a));
+        setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, status: 'resolved', resolvedAt: Date.now(), resolvedBy: actorName, respondedAt: a.respondedAt || Date.now() } : a));
         logEntry = { ...logEntry, action: 'Resolved', target: `Alert #${alert.id}`, alert: alert.type, severity: alert.severity };
         break;
       case 'unblock':
@@ -2977,11 +2982,11 @@ ${[
               const mttd = ackedAlerts.length
                 ? (ackedAlerts.reduce((s,a)=>s+(a.acknowledgedAt-a.createdAt),0)/ackedAlerts.length/60000).toFixed(1)
                 : alerts.length ? '< 0.1' : '—';
-              // MTTR: avg time from alert creation to resolved
-              const resolvedAlerts = alerts.filter(a=>(a.status==='resolved'||a.status==='mitigated')&&a.resolvedAt&&a.createdAt);
-              const mttr = resolvedAlerts.length
-                ? (resolvedAlerts.reduce((s,a)=>s+(a.resolvedAt-a.createdAt),0)/resolvedAlerts.length/60000).toFixed(1)
-                : responseLog.filter(r=>r.action==='Resolved').length > 0 ? '< 1.0' : '—';
+              // MTTR: avg time from alert creation to first response action (block/isolate/ack/resolve)
+              const respondedAlerts = alerts.filter(a => a.respondedAt && a.createdAt);
+              const mttr = respondedAlerts.length
+                ? (respondedAlerts.reduce((s,a) => s + (a.respondedAt - a.createdAt), 0) / respondedAlerts.length / 60000).toFixed(1)
+                : '—';
               const grcAvg = Math.round(grcFrameworks.reduce((s,f)=>s+f.score,0)/grcFrameworks.length);
               const threatLevel = critCount >= 3 ? 'CRITICAL' : critCount >= 1 ? 'ELEVATED' : highCount >= 2 ? 'GUARDED' : 'LOW';
               const threatLevelColor = {CRITICAL:'#ef4444',ELEVATED:'#f97316',GUARDED:'#eab308',LOW:'#22c55e'}[threatLevel];
@@ -3007,7 +3012,7 @@ ${[
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label:'Mean Time to Detect',  value:`${mttd} min`, sub: mttd==='—' ? 'Ack an alert to calculate' : 'Target < 5 min',  color:'#06b6d4', ok: mttd!=='—'&&parseFloat(mttd)<5 },
-                      { label:'Mean Time to Respond', value:`${mttr} min`, sub: mttr==='—' ? 'Resolve an alert to calculate' : 'Target < 15 min', color:'#8b5cf6', ok: mttr!=='—'&&parseFloat(mttr)<15 },
+                      { label:'Mean Time to Respond', value:`${mttr} min`, sub: mttr==='—' ? 'Take action on an alert to calculate' : 'Target < 15 min', color:'#8b5cf6', ok: mttr!=='—'&&parseFloat(mttr)<15 },
                       { label:'IPs Blocked',           value:blockedIPs.length, sub:`${responseLog.filter(r=>r.action==='Blocked IP').length} block actions logged`, color:'#ef4444', ok: true },
                       { label:'GRC Overall Score',     value:`${grcAvg}%`,  sub:`${grcFrameworks.filter(f=>f.score>=75).length}/${grcFrameworks.length} frameworks passing`, color: grcAvg>=75?'#22c55e':grcAvg>=55?'#eab308':'#ef4444', ok: grcAvg>=75 },
                     ].map((k,i)=>(
