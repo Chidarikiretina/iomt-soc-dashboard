@@ -157,11 +157,30 @@ const playbookData = {
 
 // ── Device Risk Scores ─────────────────────────────────────────────────────────
 const deviceRiskData = {
-  'Infusion Pump':   { score:87, level:'critical', factors:['Unpatched firmware (CVE-2023-1234)','PHI data exposure','Default credentials active','Network-accessible management port'], patches:0, lastAudit:'42 days ago' },
-  'Heart Monitor':   { score:62, level:'high',     factors:['Outdated OS (Win XP Embedded)','PHI data exposure','Limited TLS support'], patches:3, lastAudit:'28 days ago' },
-  'Pulse Oximeter':  { score:28, level:'low',      factors:['Network-accessible'], patches:0, lastAudit:'7 days ago' },
-  'ECG Monitor':     { score:45, level:'medium',   factors:['Unencrypted data in transit','PHI data exposure','Weak authentication'], patches:1, lastAudit:'15 days ago' },
+  'Infusion Pump':   { score:87, level:'critical', factors:['Unpatched firmware (CVE-2023-1234)','PHI data exposure','Default credentials active','Network-accessible management port'], patches:0 },
+  'Heart Monitor':   { score:62, level:'high',     factors:['Outdated OS (Win XP Embedded)','PHI data exposure','Limited TLS support'], patches:3 },
+  'Pulse Oximeter':  { score:28, level:'low',      factors:['Network-accessible'], patches:0 },
+  'ECG Monitor':     { score:45, level:'medium',   factors:['Unencrypted data in transit','PHI data exposure','Weak authentication'], patches:1 },
 };
+
+// Initial audit timestamps — match the old hardcoded "X days ago" strings
+const AUDIT_DEFAULTS = {
+  'Infusion Pump':  Date.now() - 42 * 86400_000,
+  'Heart Monitor':  Date.now() - 28 * 86400_000,
+  'Pulse Oximeter': Date.now() -  7 * 86400_000,
+  'ECG Monitor':    Date.now() - 15 * 86400_000,
+};
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days  = Math.floor(diff / 86_400_000);
+  if (mins  <  1) return 'just now';
+  if (mins  < 60) return `${mins} min ago`;
+  if (hours < 24) return `${hours} hr ago`;
+  return `${days} day${days !== 1 ? 's' : ''} ago`;
+}
 
 // ── Forensic Packet Capture ────────────────────────────────────────────────────
 const generatePackets = () => Array.from({length:12},(_,i)=>({
@@ -1175,6 +1194,23 @@ export default function IoMTDashboard() {
   // ── Live-computed GRC & HIPAA scores (recalculated whenever alerts change) ───
   const grcFrameworks = useMemo(() => computeGrcScores(alerts), [alerts]);
   const hipaaRules    = useMemo(() => computeHipaaScores(alerts), [alerts]);
+
+  // ── Audit timestamps — persisted in localStorage, initialised from defaults ──
+  const [auditTimestamps, setAuditTimestamps] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('iomt_audit_ts_v1') || 'null');
+      if (saved && typeof saved === 'object') return { ...AUDIT_DEFAULTS, ...saved };
+    } catch {}
+    return { ...AUDIT_DEFAULTS };
+  });
+
+  const markAudited = (device) => {
+    setAuditTimestamps(prev => {
+      const next = { ...prev, [device]: Date.now() };
+      try { localStorage.setItem('iomt_audit_ts_v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   // Attack distribution — computed live from WebSocket alerts
   const ATTACK_COLORS = { DDoS:'#ef4444', DoS:'#f97316', Spoofing:'#eab308', MQTT:'#8b5cf6', Recon:'#3b82f6', Benign:'#22c55e' };
@@ -4091,7 +4127,15 @@ ${[
                                   <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Patch Management</p>
                                   <div className="flex items-center gap-2 text-xs">
                                     <span className="text-slate-500">Last audit:</span>
-                                    <span className="text-slate-400 font-mono">{risk.lastAudit}</span>
+                                    <span className="text-slate-400 font-mono">{timeAgo(auditTimestamps[device])}</span>
+                                    <button
+                                      onClick={() => markAudited(device)}
+                                      title="Mark as audited now"
+                                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-700/60 hover:bg-cyan-500/20 border border-slate-600/50 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-400 transition-all"
+                                    >
+                                      <Clock className="w-3 h-3" />
+                                      <span>Mark audited</span>
+                                    </button>
                                   </div>
                                 </div>
                                 {detail.patchList?.length > 0 ? (
