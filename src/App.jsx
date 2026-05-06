@@ -7003,9 +7003,23 @@ ${[
                 <h3 className="font-semibold text-lg">Notification History</h3>
                 <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 text-base">{notifications.length}</span>
               </div>
-              <button onClick={() => setShowNotificationPanel(false)} className="p-1.5 hover:bg-slate-700 rounded-lg">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setShowNotificationPanel(false); setShowNotificationSettings(true); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700/60 text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 transition-colors"
+                  title="Configure Email & Slack"
+                >
+                  <Settings className="w-3.5 h-3.5" /> Configure
+                </button>
+                {notifications.length > 0 && (
+                  <button onClick={() => setNotifications([])} className="px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Clear history">
+                    Clear
+                  </button>
+                )}
+                <button onClick={() => setShowNotificationPanel(false)} className="p-1.5 hover:bg-slate-700 rounded-lg ml-1">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-slate-700/30">
               {notifications.length === 0 && (
