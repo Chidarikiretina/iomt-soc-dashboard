@@ -631,15 +631,15 @@ function LoginPage({ onLogin, checkCredentials, onOtpGenerated }) {
           <Shield style={{ width: 22, height: 22, color: 'white' }} />
         </div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'white' }}>IoMT Security Operations Center</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#22d3ee', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Security Operations Center</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'white' }}>IoMT Anomaly Detection System</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#22d3ee', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Anomaly Detection System</div>
         </div>
       </div>
 
       {/* Bottom-left info */}
       <div style={{ position: 'absolute', bottom: 24, left: 36, zIndex: 1 }}>
-        <div style={{ fontSize: 12, color: '#334155' }}>IoMT Security Operations Center</div>
-        <div style={{ fontSize: 11, color: '#1e293b', marginTop: 2 }}>© 2026 IoMT-SOC Platform · All rights reserved</div>
+        <div style={{ fontSize: 12, color: '#334155' }}>IoMT Anomaly Detection System</div>
+        <div style={{ fontSize: 11, color: '#1e293b', marginTop: 2 }}>© 2026 IoMT Anomaly Detection System · All rights reserved</div>
       </div>
 
       {/* Bottom-right compliance badges */}
@@ -1788,7 +1788,7 @@ export default function IoMTDashboard() {
     <div class="rpt-logo">
       <span class="rpt-dot" style="background:${accentColor}"></span>
       <span class="rpt-dot" style="background:#378add"></span>
-      <span class="rpt-logo-text">IoMT &nbsp;·&nbsp; SOC</span>
+      <span class="rpt-logo-text">IoMT &nbsp;·&nbsp; ADS</span>
     </div>
     <div class="rpt-title">${title}</div>
     <div class="rpt-subtitle">${subtitle}</div>
@@ -1829,7 +1829,7 @@ ${body}
 
 <div class="rpt-footer">
   <div class="footer-text">
-    <div>IoMT Security Operations Center &nbsp;·&nbsp; LightGBM v2.0 &nbsp;·&nbsp; ${mlAccuracy}% accuracy &nbsp;·&nbsp; 44 features</div>
+    <div>IoMT Anomaly Detection System &nbsp;·&nbsp; LightGBM v2.0 &nbsp;·&nbsp; ${mlAccuracy}% accuracy &nbsp;·&nbsp; 44 features</div>
     <div>Generated ${dateStr} &nbsp;·&nbsp; ${currentUser?.name || 'System'} &nbsp;·&nbsp; ${ROLE_DEFS[role]?.label || ''}</div>
     <div style="color:#2d3748;letter-spacing:2px;font-size:8px">CONFIDENTIAL — AUTHORISED PERSONNEL ONLY</div>
   </div>
@@ -1916,7 +1916,7 @@ ${[
   {n:4, title:'Operational KPIs', text:`MTTR is currently <strong>${realMttr}</strong>. Target is under 15 minutes. Maintain current SOC staffing model and review auto-response thresholds quarterly.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#8b5cf6','Executive Security Briefing','IoMT Security Operations Center · Strategic Governance View',`EXEC-${incidentId}`,body);
+      return pageShell('#8b5cf6','Executive Security Briefing','IoMT Anomaly Detection System · Strategic Governance View',`EXEC-${incidentId}`,body);
     };
 
     // ── SOC Manager: Full Operational Incident Report ─────────────────────────
@@ -2036,7 +2036,7 @@ ${[
   {n:4,title:'Playbook Review',text:'Update incident response playbooks with lessons learned from this event. Review MITRE ATT&CK technique mappings against detected signatures.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#ef4444','Security Incident Report','IoMT Security Operations Center · Incident Command View',incidentId,body);
+      return pageShell('#ef4444','Security Incident Report','IoMT Anomaly Detection System · Incident Command View',incidentId,body);
     };
 
     // ── SOC Analyst: Technical Investigation Report ───────────────────────────
@@ -2134,7 +2134,7 @@ ${[
   {n:3,title:'Correlation',text:`${threatIntel.filter(t=>t.matched).length} threat indicators matched in the current session. Cross-reference with MITRE Navigator and update detection rules for high-confidence matches.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#06b6d4','Technical Investigation Report','IoMT Security Operations Center · Threat Analysis',`TECH-${incidentId}`,body);
+      return pageShell('#06b6d4','Technical Investigation Report','IoMT Anomaly Detection System · Threat Analysis',`TECH-${incidentId}`,body);
     };
 
     // ── Compliance Officer: HIPAA & GRC Audit Report ──────────────────────────
@@ -2229,7 +2229,7 @@ ${[
   {n:4,title:'Audit Controls',text:'Enable audit logging on Infusion Pump firmware v1.2.3. File a variance report with HHS if logging cannot be enabled within 30 days.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#22c55e','HIPAA Compliance & Audit Report','IoMT Security Operations Center · Compliance & Legal',`AUDIT-${incidentId}`,body);
+      return pageShell('#22c55e','HIPAA Compliance & Audit Report','IoMT Anomaly Detection System · Compliance & Legal',`AUDIT-${incidentId}`,body);
     };
 
     // ── Clinical Engineer: Device Health Report ───────────────────────────────
@@ -2309,7 +2309,7 @@ ${[
   {n:4,title:'Routine Health Check',text:'All four devices are online and responding. Pulse Oximeter and Heart Monitor show nominal readings. Schedule quarterly biomedical inspection for all IoMT devices.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#f97316','IoMT Device Health Report','IoMT Security Operations Center · Biomedical Systems',`DEVICE-${incidentId}`,body);
+      return pageShell('#f97316','IoMT Device Health Report','IoMT Anomaly Detection System · Biomedical Systems',`DEVICE-${incidentId}`,body);
     };
 
     // ── Threat Intelligence Analyst (Precious) ────────────────────────────────
@@ -2404,7 +2404,7 @@ ${[
   {n:4,title:'Feed Updates',text:`Cross-reference current IOC list with AlienVault OTX and CISA KEV catalogue. ${threatIntel.filter(t=>t.matched).length} indicators matched — add confirmed IPs to firewall blocklist.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#8b5cf6','Threat Intelligence Report','IoMT SOC · Threat Intelligence & IOC Analysis',`TI-${incidentId}`,body);
+      return pageShell('#8b5cf6','Threat Intelligence Report','IoMT ADS · Threat Intelligence & IOC Analysis',`TI-${incidentId}`,body);
     };
 
     // ── Incident Responder (Primrose) ─────────────────────────────────────────
@@ -2501,7 +2501,7 @@ ${[
   {n:4,title:'Escalation',text:`If ${activeA.length} active incidents are not contained within 60 minutes, escalate to SOC Manager (${SOC_TEAM.find(m=>m.role==='SOC Manager')?.name||'Tinashe Chidarikire'}) and initiate the Major Incident Response procedure.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#ef4444','Incident Response Report','IoMT SOC · Active Incident Management',`IR-${incidentId}`,body);
+      return pageShell('#ef4444','Incident Response Report','IoMT ADS · Active Incident Management',`IR-${incidentId}`,body);
     };
 
     // ── ML / Data Engineer (Jubillee) ─────────────────────────────────────────
@@ -2574,7 +2574,7 @@ ${[
   {n:4,title:'Explainability',text:'Audit top feature importance scores to verify the key drivers behind Spoofing and MQTT classifications. Ensure the model is not over-relying on transient packet timing features that may not generalise to live hospital traffic.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#22c55e','ML Model Performance Report','IoMT SOC · Machine Learning & Data Engineering',`ML-${incidentId}`,body);
+      return pageShell('#22c55e','ML Model Performance Report','IoMT ADS · Machine Learning & Data Engineering',`ML-${incidentId}`,body);
     };
 
     // ── Network Security Analyst (Evelyn) ─────────────────────────────────────
@@ -2668,7 +2668,7 @@ ${[
   {n:4,title:'ACL Review',text:'ACL-001 and ACL-003 DENY rules are functioning correctly. Review ACL-004 (SOC management access to VLAN-20) quarterly to ensure least-privilege access is maintained.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#f97316','Network Security Report','IoMT SOC · Network Traffic Analysis & ACL Monitoring',`NET-${incidentId}`,body);
+      return pageShell('#f97316','Network Security Report','IoMT ADS · Network Traffic Analysis & ACL Monitoring',`NET-${incidentId}`,body);
     };
 
     // ── Admin: System Administration Report ───────────────────────────────────
@@ -2745,7 +2745,7 @@ ${[
   {n:4,title:'Patch Management',text:`Review IoMT device firmware status in the Device Assets panel. Monitored devices: ${REPORT_DEVICES.join(', ')}. ECG Monitor (CVE-2025-3341, CVSS 6.5) has a high-severity patch pending. Infusion Pump (CVE-2023-1234, CVSS 9.1) requires immediate firmware update.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
-      return pageShell('#f59e0b','System Administration Report','IoMT SOC · System Administration & Access Control Audit',`ADMIN-${incidentId}`,body);
+      return pageShell('#f59e0b','System Administration Report','IoMT ADS · System Administration & Access Control Audit',`ADMIN-${incidentId}`,body);
     };
 
     // ── Route to correct report by current role ───────────────────────────────
@@ -2859,7 +2859,7 @@ ${[
             )}
           </div>
           <div>
-            <h1 className="text-sm font-bold tracking-tight leading-tight">IoMT Security Operations Center</h1>
+            <h1 className="text-sm font-bold tracking-tight leading-tight">IoMT Anomaly Detection System</h1>
             <p className="text-xs text-slate-500 leading-tight">Real-Time Threat Detection & Response</p>
           </div>
         </div>
@@ -2970,7 +2970,7 @@ ${[
               { id:'upload',      icon:Upload,        label:'CSV Analysis',    color:'text-pink-400'    },
               { id:'hipaa',       icon:ClipboardList, label:'HIPAA',           color:'text-emerald-400' },
               { id:'grc',         icon:Scale,         label:'GRC',             color:'text-violet-400'  },
-              { id:'team',        icon:Users,         label:'SOC Team',        color:'text-cyan-400'    },
+              { id:'team',        icon:Users,         label:'ADS Team',        color:'text-cyan-400'    },
             ].filter(tab => visibleTabIds.includes(tab.id)).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all ${
@@ -6050,7 +6050,7 @@ ${[
                 {/* Header */}
                 <div className="mb-6">
                   <h2 className="text-xl font-bold text-cyan-400 flex items-center gap-2">
-                    <Users className="w-5 h-5"/> SOC Team — IoMT Security Operations Center
+                    <Users className="w-5 h-5"/> ADS Team — IoMT Anomaly Detection System
                   </h2>
                   <p className="text-slate-500 text-sm mt-1">M.S. Cybersecurity Capstone Project · Active Shift</p>
                 </div>
@@ -6782,7 +6782,7 @@ ${[
 
       {/* Footer */}
       <footer className="px-4 py-2 border-t border-slate-800/50 flex justify-between text-xs text-slate-600 flex-shrink-0">
-        <span>IoMT Security Operations Center</span>
+        <span>IoMT Anomaly Detection System</span>
         <span>Real-Time Threat Detection & Response Platform</span>
       </footer>
 
