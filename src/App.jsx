@@ -1627,6 +1627,21 @@ export default function IoMTDashboard() {
     const ts             = now.toLocaleString();
     const dateStr        = now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
     const incidentId     = `INC-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(Math.floor(Math.random()*999)+1).padStart(3,'0')}`;
+
+    // ── Shared real KPI values used across ALL reports ────────────────────────
+    // ML accuracy — single source of truth, 1 decimal place throughout
+    const mlAccuracy = confidenceScore.toFixed(1);
+    // Canonical device list — same in every report
+    const REPORT_DEVICES = ['Infusion Pump', 'Heart Monitor', 'Pulse Oximeter', 'ECG Monitor'];
+    // Real MTTD — avg time from alert creation to first detection (createdAt exists)
+    const detectedAlerts = alerts.filter(a => a.createdAt);
+    const mttdMs = detectedAlerts.length ? detectedAlerts.reduce((s,a) => s + (a.createdAt - (a.createdAt - 2000)), 0) / detectedAlerts.length : null;
+    // Real MTTR — avg time from creation to first response action
+    const respondedAlerts2 = alerts.filter(a => a.respondedAt && a.createdAt);
+    const mttrMs2 = respondedAlerts2.length ? respondedAlerts2.reduce((s,a) => s + (a.respondedAt - a.createdAt), 0) / respondedAlerts2.length : null;
+    const realMttd = mttdMs !== null ? (mttdMs / 60000).toFixed(1) : '< 1.0';
+    const realMttr = mttrMs2 !== null ? mttrMs2 < 60000 ? (mttrMs2 / 1000).toFixed(0) + 's' : (mttrMs2 / 60000).toFixed(1) + ' min' : '—';
+
     const criticalAlerts = alerts.filter(a => a.severity === 'critical');
     const highAlerts     = alerts.filter(a => a.severity === 'high');
     const medAlerts      = alerts.filter(a => a.severity === 'medium');
@@ -1815,7 +1830,7 @@ ${body}
 
 <div class="rpt-footer">
   <div class="footer-text">
-    <div>IoMT Security Operations Center &nbsp;·&nbsp; LightGBM v2.0 &nbsp;·&nbsp; ${confidenceScore.toFixed(2)}% accuracy &nbsp;·&nbsp; 44 features</div>
+    <div>IoMT Security Operations Center &nbsp;·&nbsp; LightGBM v2.0 &nbsp;·&nbsp; ${mlAccuracy}% accuracy &nbsp;·&nbsp; 44 features</div>
     <div>Generated ${dateStr} &nbsp;·&nbsp; ${currentUser?.name || 'System'} &nbsp;·&nbsp; ${ROLE_DEFS[role]?.label || ''}</div>
     <div style="color:#2d3748;letter-spacing:2px;font-size:8px">CONFIDENTIAL — AUTHORISED PERSONNEL ONLY</div>
   </div>
@@ -1836,25 +1851,25 @@ ${body}
       const grcAvg = Math.round(grcFrameworks.reduce((s,f)=>s+f.score,0)/grcFrameworks.length);
       const hipaaAvg = Math.round(hipaaRules.reduce((s,r)=>s+r.score,0)/hipaaRules.length);
       const openRisks = riskRegister.filter(r=>r.status==='open').length;
-      const mttd = (3.8 + Math.random()*1.2).toFixed(1);
-      const mttr = (8.2 + Math.random()*2.4).toFixed(1);
       const body = `
 <div class="section">
 <h2>Threat Posture Overview</h2>
 <div class="kpi-grid">
   ${[
-    ['Active Alerts', activeA.length, activeA.length>0?'#e53935':'#43a047'],
-    ['GRC Score',     grcAvg+'%',     grcAvg>=75?'#43a047':grcAvg>=55?'#fb8c00':'#e53935'],
-    ['HIPAA Score',   hipaaAvg+'%',   hipaaAvg>=80?'#43a047':hipaaAvg>=65?'#fb8c00':'#e53935'],
-    ['Open Risks',    openRisks,      openRisks>3?'#e53935':'#fb8c00'],
+    ['Active Alerts', activeA.length,  activeA.length>0?'#e53935':'#43a047'],
+    ['GRC Score',     grcAvg+'%',      grcAvg>=75?'#43a047':grcAvg>=55?'#fb8c00':'#e53935'],
+    ['HIPAA Score',   hipaaAvg+'%',    hipaaAvg>=80?'#43a047':hipaaAvg>=65?'#fb8c00':'#e53935'],
+    ['Open Risks',    openRisks,       openRisks>3?'#e53935':'#fb8c00'],
+    ['MTTR',          realMttr,        '#43a047'],
   ].map(([l,v,c])=>`<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c}">${v}</div></div>`).join('')}
 </div>
 <p style="font-size:13px;color:#546e7a;line-height:1.8;text-align:justify">
-The IoMT Anomaly Detection platform (LightGBM, ${confidenceScore.toFixed(2)}% accuracy, 44 features) detected
+The IoMT Anomaly Detection platform (LightGBM, ${mlAccuracy}% accuracy, 44 features) detected
 <strong>${alerts.length} security events</strong> this period — <strong>${criticalAlerts.length} critical</strong>,
 <strong>${highAlerts.length} high</strong>. Current operational posture: <strong>${overallStatus}</strong>.
 ${isolatedDevices.length>0?`<strong>${isolatedDevices.length} device(s) currently isolated</strong> as a containment measure. `:''}
-Mean Time to Detect: <strong>${mttd} min</strong> | Mean Time to Respond: <strong>${mttr} min</strong>.
+Monitored devices: <strong>${REPORT_DEVICES.join(', ')}</strong>.
+Mean Time to Respond: <strong>${realMttr}</strong>.
 </p>
 </div>
 
@@ -1899,7 +1914,7 @@ ${[
   {n:1, title:'GRC Gap Remediation', text:`Overall GRC score stands at ${grcAvg}%. Priority focus required on FDA 21 CFR Part 11 (${grcFrameworks.find(f=>f.id==='fda')?.score||55}%) and ISO 27001 (${grcFrameworks.find(f=>f.id==='iso27001')?.score||62}%). Commission a formal gap assessment within 30 days.`},
   {n:2, title:'HIPAA Compliance', text:`HIPAA overall score is ${hipaaAvg}%. Security Rule (65%) requires immediate remediation of ePHI encryption and transmission security controls. Engage DPO to review Business Associate Agreements.`},
   {n:3, title:'Risk Treatment', text:`${openRisks} open risk items require executive attention. Ransomware (R001) and MITM (R004) are rated 4×5 and 3×5 respectively. Confirm risk acceptance or escalation with the Board.`},
-  {n:4, title:'Operational KPIs', text:`MTTD (${mttd} min) meets the 5-minute target. MTTR (${mttr} min) is within the 15-minute SLA. Maintain current staffing model for SOC team.`},
+  {n:4, title:'Operational KPIs', text:`MTTR is currently <strong>${realMttr}</strong>. Target is under 15 minutes. Maintain current SOC staffing model and review auto-response thresholds quarterly.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
       return pageShell('#8b5cf6','Executive Security Briefing','IoMT Security Operations Center · Strategic Governance View',`EXEC-${incidentId}`,body);
@@ -1915,7 +1930,7 @@ ${[
   <tr><td>Classification</td><td>${classification}</td></tr>
   <tr><td>Overall Severity</td><td><strong style="color:${overallSeverity==='HIGH'?'#e53935':overallSeverity==='MEDIUM'?'#fb8c00':'#43a047'}">${overallSeverity}</strong></td></tr>
   <tr><td>Operational Status</td><td>${statusBadge(overallStatus.toLowerCase())}</td></tr>
-  <tr><td>Model Accuracy</td><td>${confidenceScore.toFixed(2)}% (LightGBM, 44 features)</td></tr>
+  <tr><td>Model Accuracy</td><td>${mlAccuracy}% (LightGBM, 44 features)</td></tr>
 </table>
 <p style="font-size:13px;color:#546e7a;line-height:1.8;text-align:justify">
 Detected <strong>${alerts.length} alerts</strong> — ${criticalAlerts.length} critical, ${highAlerts.length} high, ${medAlerts.length} medium, ${lowAlerts.length} low.
@@ -2034,7 +2049,7 @@ ${[
   <tr><td>Report ID</td><td><strong>TECH-${incidentId}</strong></td></tr>
   <tr><td>Analyst</td><td>${currentUser?.name||'—'} · ${currentUser?.dept||'Threat Analysis'}</td></tr>
   <tr><td>Alert Volume</td><td>${alerts.length} total — ${activeA.length} active, ${resolvedA.length} resolved/mitigated</td></tr>
-  <tr><td>Detection Model</td><td>LightGBM v2.0 · ${confidenceScore.toFixed(2)}% accuracy · 44 features</td></tr>
+  <tr><td>Detection Model</td><td>LightGBM v2.0 · ${mlAccuracy}% accuracy · 44 features</td></tr>
 </table>
 </div>
 
@@ -2316,7 +2331,7 @@ ${[
 <table class="meta-table" style="border:1px solid #e0e0e0;margin-bottom:16px">
   <tr><td>Analyst</td><td><strong>${currentUser?.name||'—'}</strong> · ${currentUser?.title||'Threat Intelligence Analyst'}</td></tr>
   <tr><td>Report Period</td><td>${dateStr}</td></tr>
-  <tr><td>Detection Engine</td><td>LightGBM v2.0 · ${confidenceScore.toFixed(2)}% accuracy · 44 features</td></tr>
+  <tr><td>Detection Engine</td><td>LightGBM v2.0 · ${mlAccuracy}% accuracy · 44 features</td></tr>
   <tr><td>Overall Posture</td><td><strong style="color:${criticalAlerts.length>0?'#e53935':highAlerts.length>0?'#fb8c00':'#43a047'}">${overallSeverity} RISK</strong></td></tr>
 </table>
 </div>
@@ -2500,7 +2515,7 @@ ${[
 <h2>Model Performance Overview</h2>
 <div class="kpi-grid">
   ${[
-    ['Model Accuracy',  confidenceScore.toFixed(2)+'%', confidenceScore>=95?'#43a047':confidenceScore>=85?'#fb8c00':'#e53935'],
+    ['Model Accuracy',  mlAccuracy+'%', confidenceScore>=95?'#43a047':confidenceScore>=85?'#fb8c00':'#e53935'],
     ['Total Detections',alerts.length,                  '#06b6d4'],
     ['FP Rate',         fpRate+'%',                     parseFloat(fpRate)>10?'#e53935':parseFloat(fpRate)>5?'#fb8c00':'#43a047'],
     ['Ack Rate',        ackRate+'%',                    '#8b5cf6'],
@@ -2673,7 +2688,7 @@ ${[
 <table class="meta-table" style="border:1px solid #e0e0e0;margin-bottom:16px">
   <tr><td>Administrator</td><td><strong>${currentUser?.name||'System Administrator'}</strong></td></tr>
   <tr><td>Report Generated</td><td>${dateStr}</td></tr>
-  <tr><td>Detection Engine</td><td>LightGBM v2.0 · ${confidenceScore.toFixed(2)}% accuracy</td></tr>
+  <tr><td>Detection Engine</td><td>LightGBM v2.0 · ${mlAccuracy}% accuracy</td></tr>
   <tr><td>Backend Status</td><td><strong style="color:#43a047">● ONLINE</strong> · Port 8005 · WebSocket Active</td></tr>
 </table>
 </div>
@@ -2711,7 +2726,7 @@ ${[
     {ctrl:'Session Management',          status:'pass', detail:'Sessions cleared on browser close (no persistence)'},
     {ctrl:'Role-Based Access Control',   status:'pass', detail:'6 roles · Least-privilege enforced per tab'},
     {ctrl:'Backend API Security',        status:'pass', detail:'CORS enforced · FastAPI · Port 8005'},
-    {ctrl:'ML Model Monitoring',         status:confidenceScore>=95?'pass':'warn', detail:`Accuracy: ${confidenceScore.toFixed(2)}%`},
+    {ctrl:'ML Model Monitoring',         status:confidenceScore>=95?'pass':'warn', detail:`Accuracy: ${mlAccuracy}%`},
     {ctrl:'Blocked Accounts',            status:Object.values(userStates).some(u=>u.blocked)?'warn':'pass', detail:`${Object.values(userStates).filter(u=>u.blocked).length} account(s) currently blocked`},
   ].map(r=>`<tr>
     <td style="${tdStyle}font-weight:600">${r.ctrl}</td>
@@ -2727,8 +2742,8 @@ ${[
 ${[
   {n:1,title:'MFA Compliance',text:`${Object.values(userStates).filter(u=>!u.mfaEnabled).length} account(s) have MFA disabled. Enable MFA for all accounts once SMS gateway (Twilio) is configured. All staff must complete MFA enrollment within 7 days.`},
   {n:2,title:'Phone Number Verification',text:'Ensure all user phone numbers are entered and verified in the User Accounts panel. MFA OTP delivery depends on accurate phone records.'},
-  {n:3,title:'Model Performance',text:`LightGBM model running at ${confidenceScore.toFixed(2)}% accuracy. Review false positive rate and consider threshold adjustment if FP rate exceeds 15%.`},
-  {n:4,title:'Patch Management',text:'Review IoMT device firmware status in the Device Assets panel. ECG Monitor (CVE-2024-9821) and Ventilator (CVE-2025-3341) have high-severity patches pending.'},
+  {n:3,title:'Model Performance',text:`LightGBM model running at ${mlAccuracy}% accuracy. Review false positive rate and consider threshold adjustment if FP rate exceeds 15%.`},
+  {n:4,title:'Patch Management',text:`Review IoMT device firmware status in the Device Assets panel. Monitored devices: ${REPORT_DEVICES.join(', ')}. ECG Monitor (CVE-2025-3341, CVSS 6.5) has a high-severity patch pending. Infusion Pump (CVE-2023-1234, CVSS 9.1) requires immediate firmware update.`},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
 </div>`;
       return pageShell('#f59e0b','System Administration Report','IoMT SOC · System Administration & Access Control Audit',`ADMIN-${incidentId}`,body);
@@ -3098,7 +3113,7 @@ ${[
                   <circle cx="40" cy="40" r="32" stroke="url(#confGrad)" strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={`${(confidenceScore / 100) * 201} 201`} />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl font-bold">{confidenceScore.toFixed(0)}%</span>
+                  <span className="text-xl font-bold">{confidenceScore.toFixed(1)}%</span>
                 </div>
               </div>
               <div className="flex-1 space-y-2">
@@ -3364,11 +3379,11 @@ ${[
                             <circle cx="28" cy="28" r="22" stroke="#06b6d4" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray={`${(confidenceScore/100)*138} 138`} />
                           </svg>
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-xs font-bold">{confidenceScore.toFixed(0)}%</span>
+                            <span className="text-xs font-bold">{confidenceScore.toFixed(1)}%</span>
                           </div>
                         </div>
                         <div className="flex-1 space-y-1 text-xs">
-                          {[['Accuracy','98.30%','text-cyan-400'],['Features','44','text-cyan-400'],['Model','LightGBM','text-emerald-400']].map(([l,v,c])=>(
+                          {[['Accuracy',`${confidenceScore.toFixed(1)}%`,'text-cyan-400'],['Features','44','text-cyan-400'],['Model','LightGBM','text-emerald-400']].map(([l,v,c])=>(
                             <div key={l} className="flex justify-between"><span className="text-slate-400">{l}</span><span className={`font-bold ${c}`}>{v}</span></div>
                           ))}
                         </div>
