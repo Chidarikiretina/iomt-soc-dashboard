@@ -2524,7 +2524,7 @@ ${[
   <tr><td>Engineer</td><td><strong>${currentUser?.name||'—'}</strong> · ${currentUser?.title||'ML / Data Engineer'}</td></tr>
   <tr><td>Model</td><td>LightGBM v2.0 · Multi-class classifier</td></tr>
   <tr><td>Classes</td><td>Benign · DDoS · DoS · Recon · Spoofing · MQTT</td></tr>
-  <tr><td>Feature Count</td><td>44 network flow features (CICIoMT2024 dataset)</td></tr>
+  <tr><td>Feature Count</td><td>44 network flow features (CICIoT2023 dataset)</td></tr>
   <tr><td>Training Dataset</td><td>CIC IoMT 2024 — WiFi + MQTT traffic</td></tr>
 </table>
 </div>
@@ -2569,7 +2569,7 @@ ${[
 <h2>Model Tuning Recommendations</h2>
 ${[
   {n:1,title:'Threshold Optimisation',text:`Current minimum confidence threshold is set to ${alertThreshold}%. Analysis shows ${alerts.filter(a=>a.confidence<80).length} alerts below 80% confidence — consider raising threshold to 88% to reduce false positives while maintaining recall on critical attacks.`},
-  {n:2,title:'Class Imbalance',text:'The CICIoMT2024 training set is DDoS-heavy. Recommend re-sampling with SMOTE or class weighting adjustment for Spoofing and MQTT classes, which are under-represented but high-impact.'},
+  {n:2,title:'Class Imbalance',text:'The CICIoT2023 training set is DDoS-heavy. Recommend re-sampling with SMOTE or class weighting adjustment for Spoofing and MQTT classes, which are under-represented but high-impact.'},
   {n:3,title:'Feature Drift',text:'Monitor for concept drift in production traffic vs. training data. Schedule quarterly model re-evaluation with updated network traffic captures from the live hospital environment.'},
   {n:4,title:'Explainability',text:'Audit top feature importance scores to verify the key drivers behind Spoofing and MQTT classifications. Ensure the model is not over-relying on transient packet timing features that may not generalise to live hospital traffic.'},
 ].map(r=>`<p style="margin-bottom:12px;font-size:13px;color:#37474f;text-align:justify"><strong>${r.n}. ${r.title}:</strong> ${r.text}</p>`).join('')}
@@ -6496,7 +6496,7 @@ ${[
                           {[
                             ['FastAPI Backend',  'Running · Port 8005', '#22c55e'],
                             ['WebSocket Stream', liveRunning?'Active':'Stopped', liveRunning?'#22c55e':'#ef4444'],
-                            ['LightGBM Model',   'Loaded · CICIoMT2024', '#22c55e'],
+                            ['LightGBM Model',   'Loaded · CICIoT2023', '#22c55e'],
                             ['SQLite DB',        `${alerts.length} records`, '#06b6d4'],
                             ['React Frontend',   'Running · Port 5174', '#22c55e'],
                           ].map(([k,v,c])=>(
