@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import emailjs from '@emailjs/browser';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || '${API_BASE}';
 import { geoEquirectangular, geoPath } from 'd3-geo';
@@ -992,15 +993,41 @@ export default function IoMTDashboard() {
   const [appliedPatches, setAppliedPatches]   = useState({});   // { [device]: { [patchId]: boolean } }
   const [alertFilter, setAlertFilter] = useState('all');
 
-  // NEW: Notification States
-  const [notifications, setNotifications] = useState([]);
-  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
-  const [notificationSettings, setNotificationSettings] = useState({
-    email: { enabled: false, address: '', critical: true, high: true, medium: false },
-    slack: { enabled: false, webhookUrl: '', critical: true, high: true, medium: true },
+  // ── Notification state — persisted so history and config survive page reloads ──
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('iomt_notif_history_v1') || 'null');
+      return Array.isArray(s) ? s : [];
+    } catch { return []; }
   });
+  useEffect(() => {
+    try { localStorage.setItem('iomt_notif_history_v1', JSON.stringify(notifications)); } catch {}
+  }, [notifications]);
+
+  const _defaultNotifSettings = {
+    email: { enabled: false, address: '', serviceId: '', templateId: '', publicKey: '', critical: true, high: true, medium: false },
+    slack: { enabled: false, webhookUrl: '', critical: true, high: true, medium: true },
+  };
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('iomt_notif_cfg_v1') || 'null');
+      if (s && typeof s === 'object') return {
+        email: { ..._defaultNotifSettings.email, ...s.email },
+        slack: { ..._defaultNotifSettings.slack, ...s.slack },
+      };
+    } catch {}
+    return _defaultNotifSettings;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('iomt_notif_cfg_v1', JSON.stringify(notificationSettings)); } catch {}
+  }, [notificationSettings]);
+
+  // Rate-limit: 1 notification per device per 5 min to avoid spamming
+  const notifCooldowns = useRef({});
+
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
-  const [notifTestStatus, setNotifTestStatus] = useState({ email: null, slack: null }); // 'sending'|'sent'|'error'
+  const [notifTestStatus, setNotifTestStatus] = useState({ email: null, slack: null });
 
   // NEW: Threat Intelligence States
   const [threatIntel, setThreatIntel] = useState([]);
@@ -1455,28 +1482,66 @@ export default function IoMTDashboard() {
     const shouldNotify = (settings, severity) => {
       if (!settings.enabled) return false;
       if (severity === 'critical' && settings.critical) return true;
-      if (severity === 'high' && settings.high) return true;
-      if (severity === 'medium' && settings.medium) return true;
+      if (severity === 'high'     && settings.high)     return true;
+      if (severity === 'medium'   && settings.medium)   return true;
       return false;
     };
 
-    const subject = `[IoMT-SOC] ${alert.severity.toUpperCase()} Alert: ${alert.type} on ${alert.device}`;
-    const body = `SEVERITY: ${alert.severity.toUpperCase()}\nDEVICE: ${alert.device}\nTYPE: ${alert.type}\nSOURCE IP: ${alert.sourceIP}\nTIME: ${new Date().toLocaleString()}\nCONFIDENCE: ${alert.confidence}%\n\nPlease investigate immediately via the IoMT SOC dashboard.`;
+    // Rate-limit: 1 notification per device per 5 minutes
+    const now = Date.now();
+    const lastSent = notifCooldowns.current[alert.device] || 0;
+    if (now - lastSent < 5 * 60 * 1000) return;
+    notifCooldowns.current[alert.device] = now;
 
-    if (notificationSettings.email.enabled && notificationSettings.email.address && shouldNotify(notificationSettings.email, alert.severity)) {
-      // Open mailto — dispatches through user's configured mail client
-      window.open(`mailto:${notificationSettings.email.address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-      setNotifications(prev => [{ id: Date.now(), type: 'email', recipient: notificationSettings.email.address, alert: `${alert.type} on ${alert.device}`, status: 'sent', time: 'Just now', severity: alert.severity }, ...prev.slice(0, 49)]);
+    const timeStr = new Date().toLocaleTimeString();
+
+    // ── Email via EmailJS (real delivery, no backend needed) ──────────────────
+    const { email } = notificationSettings;
+    if (email.enabled && email.address && email.serviceId && email.templateId && email.publicKey
+        && shouldNotify(email, alert.severity)) {
+      emailjs.send(
+        email.serviceId,
+        email.templateId,
+        {
+          to_email:   email.address,
+          severity:   alert.severity.toUpperCase(),
+          device:     alert.device,
+          alert_type: alert.type,
+          source_ip:  alert.sourceIP,
+          confidence: `${alert.confidence}%`,
+          time:       new Date().toLocaleString(),
+        },
+        email.publicKey
+      ).then(() => {
+        setNotifications(prev => [
+          { id: Date.now(), type:'email', recipient: email.address, alert:`${alert.type} on ${alert.device}`, status:'sent',   time: timeStr, severity: alert.severity },
+          ...prev.slice(0, 99)
+        ]);
+      }).catch(() => {
+        setNotifications(prev => [
+          { id: Date.now(), type:'email', recipient: email.address, alert:`${alert.type} on ${alert.device}`, status:'failed', time: timeStr, severity: alert.severity },
+          ...prev.slice(0, 99)
+        ]);
+      });
     }
 
-    if (notificationSettings.slack.enabled && notificationSettings.slack.webhookUrl && shouldNotify(notificationSettings.slack, alert.severity)) {
-      // POST to real Slack incoming webhook
-      fetch(notificationSettings.slack.webhookUrl, {
+    // ── Slack via Incoming Webhook ────────────────────────────────────────────
+    const { slack } = notificationSettings;
+    if (slack.enabled && slack.webhookUrl && shouldNotify(slack, alert.severity)) {
+      fetch(slack.webhookUrl, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: `🚨 *${alert.severity.toUpperCase()} IoMT Alert*\n*Device:* ${alert.device}\n*Type:* ${alert.type}\n*Source IP:* ${alert.sourceIP}\n*Confidence:* ${alert.confidence}%\n*Time:* ${new Date().toLocaleString()}` }),
+        body: JSON.stringify({ text:
+          `🚨 *${alert.severity.toUpperCase()} IoMT Alert*\n` +
+          `*Device:* ${alert.device}\n*Type:* ${alert.type}\n` +
+          `*Source IP:* ${alert.sourceIP}\n*Confidence:* ${alert.confidence}%\n` +
+          `*Time:* ${new Date().toLocaleString()}`
+        }),
       }).catch(() => {});
-      setNotifications(prev => [{ id: Date.now() + 1, type: 'slack', recipient: notificationSettings.slack.webhookUrl, alert: `${alert.type} on ${alert.device}`, status: 'sent', time: 'Just now', severity: alert.severity }, ...prev.slice(0, 49)]);
+      setNotifications(prev => [
+        { id: Date.now() + 1, type:'slack', recipient:'Slack channel', alert:`${alert.type} on ${alert.device}`, status:'sent', time: timeStr, severity: alert.severity },
+        ...prev.slice(0, 99)
+      ]);
     }
   };
 
@@ -6943,22 +7008,31 @@ ${[
               </button>
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-slate-700/30">
+              {notifications.length === 0 && (
+                <div className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <Bell className="w-6 h-6 mx-auto mb-2 opacity-30"/>
+                  No notifications sent yet.<br/>
+                  <span className="text-xs">Configure Email or Slack in settings, then alerts will appear here.</span>
+                </div>
+              )}
               {notifications.map((notif) => (
                 <div key={notif.id} className="px-4 py-3 flex items-start gap-3">
-                  <div className={`p-2 rounded-lg ${notif.type === 'email' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
+                  <div className={`p-2 rounded-lg flex-shrink-0 ${notif.type === 'email' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
                     {notif.type === 'email' ? <Mail className="w-4 h-4 text-blue-400" /> : <MessageSquare className="w-4 h-4 text-purple-400" />}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-lg font-medium">{notif.type === 'email' ? 'Email' : 'Slack'}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-base ${getSeverityColor(notif.severity || 'medium')}`}>{notif.severity || 'alert'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-xs font-semibold text-slate-200">{notif.type === 'email' ? 'Email' : 'Slack'}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase ${getSeverityColor(notif.severity || 'medium')}`}>{notif.severity || 'alert'}</span>
                     </div>
-                    <p className="text-base text-slate-300">{notif.alert}</p>
-                    <p className="text-base text-slate-500">To: {notif.recipient} • {notif.time}</p>
+                    <p className="text-xs text-slate-300 truncate">{notif.alert}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{notif.recipient} · {notif.time}</p>
                   </div>
-                  <div className="flex items-center gap-1 text-emerald-400">
-                    <Check className="w-3 h-3" />
-                    <span className="text-base">Sent</span>
+                  <div className={`flex items-center gap-1 flex-shrink-0 text-xs font-semibold ${notif.status === 'failed' ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {notif.status === 'failed'
+                      ? <><X className="w-3 h-3"/>Failed</>
+                      : <><Check className="w-3 h-3"/>Sent</>
+                    }
                   </div>
                 </div>
               ))}
@@ -7005,47 +7079,68 @@ ${[
 
             <div className="p-5 space-y-5">
 
-              {/* ── EMAIL ── */}
-              {/* EMAIL */}
-              <div style={{ borderRadius:12, border:`1px solid ${notificationSettings.email.enabled && notificationSettings.email.address ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.08)'}`, padding:16, background: notificationSettings.email.enabled && notificationSettings.email.address ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.02)' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: notificationSettings.email.enabled ? 14 : 0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <Mail style={{ width:15, height:15, color:'#60a5fa' }} />
-                    <span style={{ fontWeight:600, fontSize:14, color:'white' }}>Email Alerts</span>
-                    {notificationSettings.email.enabled && notificationSettings.email.address && <span style={{ fontSize:11, padding:'2px 8px', borderRadius:100, background:'rgba(16,185,129,0.15)', color:'#34d399', border:'1px solid rgba(16,185,129,0.3)' }}>Configured</span>}
-                    {notificationSettings.email.enabled && !notificationSettings.email.address && <span style={{ fontSize:11, padding:'2px 8px', borderRadius:100, background:'rgba(245,158,11,0.15)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.3)' }}>Needs address</span>}
+              {/* ── EMAIL via EmailJS ── */}
+              {(() => {
+                const em = notificationSettings.email;
+                const fullyConfigured = em.address && em.serviceId && em.templateId && em.publicKey;
+                return (
+                <div style={{ borderRadius:12, border:`1px solid ${em.enabled && fullyConfigured ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.08)'}`, padding:16, background: em.enabled && fullyConfigured ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: em.enabled ? 14 : 0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <Mail style={{ width:15, height:15, color:'#60a5fa' }} />
+                      <span style={{ fontWeight:600, fontSize:14, color:'white' }}>Email Alerts</span>
+                      {em.enabled && fullyConfigured  && <span style={{ fontSize:11, padding:'2px 8px', borderRadius:100, background:'rgba(16,185,129,0.15)', color:'#34d399', border:'1px solid rgba(16,185,129,0.3)' }}>Configured</span>}
+                      {em.enabled && !fullyConfigured && <span style={{ fontSize:11, padding:'2px 8px', borderRadius:100, background:'rgba(245,158,11,0.15)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.3)' }}>Incomplete</span>}
+                    </div>
+                    <Toggle on={em.enabled} onToggle={() => setNotificationSettings(prev => ({ ...prev, email: { ...prev.email, enabled: !prev.email.enabled } }))} />
                   </div>
-                  <Toggle on={notificationSettings.email.enabled} onToggle={() => setNotificationSettings(prev => ({ ...prev, email: { ...prev.email, enabled: !prev.email.enabled } }))} />
+                  {em.enabled && (<>
+                    {/* EmailJS setup hint */}
+                    <div style={{ background:'rgba(59,130,246,0.07)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:8, padding:'8px 10px', marginBottom:12, fontSize:11, color:'#94a3b8', lineHeight:1.6 }}>
+                      Uses <span style={{color:'#60a5fa',fontWeight:600}}>EmailJS</span> to send real emails from the browser.
+                      Create a free account at <span style={{color:'#60a5fa'}}>emailjs.com</span> → Add a service → Create a template with variables:
+                      <span style={{fontFamily:'monospace',color:'#e2e8f0'}}> {'{{to_email}} {{severity}} {{device}} {{alert_type}} {{source_ip}} {{confidence}} {{time}}'}</span>
+                    </div>
+                    {[
+                      { key:'address',    label:'Recipient Email',   placeholder:'soc-team@hospital.org',        type:'email' },
+                      { key:'serviceId',  label:'EmailJS Service ID', placeholder:'service_xxxxxxx',             type:'text'  },
+                      { key:'templateId', label:'EmailJS Template ID',placeholder:'template_xxxxxxx',            type:'text'  },
+                      { key:'publicKey',  label:'EmailJS Public Key', placeholder:'your_public_key_here',        type:'text'  },
+                    ].map(({ key, label, placeholder, type }) => (
+                      <div key={key} style={{ marginBottom:10 }}>
+                        <div style={{ fontSize:11, color:'#94a3b8', marginBottom:5 }}>{label}</div>
+                        <input type={type} value={em[key] || ''}
+                          onChange={e => setNotificationSettings(prev => ({ ...prev, email: { ...prev.email, [key]: e.target.value } }))}
+                          placeholder={placeholder}
+                          style={{ width:'100%', padding:'9px 12px', borderRadius:8, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'white', fontSize:12, fontFamily: key==='address'?'inherit':'monospace', outline:'none', boxSizing:'border-box' }}
+                          onFocus={e=>e.target.style.borderColor='#3b82f6'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}
+                        />
+                      </div>
+                    ))}
+                    <div style={{ marginBottom:12 }}>
+                      <div style={{ fontSize:11, color:'#94a3b8', marginBottom:6 }}>Alert Severity Filter</div>
+                      <SevFilter channel="email" />
+                    </div>
+                    <button disabled={!fullyConfigured}
+                      onClick={() => {
+                        if (!fullyConfigured) return;
+                        setNotifTestStatus(p => ({ ...p, email:'sending' }));
+                        emailjs.send(em.serviceId, em.templateId, {
+                          to_email: em.address, severity:'TEST', device:'IoMT SOC Dashboard',
+                          alert_type:'Test Notification', source_ip:'—', confidence:'—',
+                          time: new Date().toLocaleString(),
+                        }, em.publicKey)
+                        .then(()  => { setNotifTestStatus(p => ({ ...p, email:'sent'  })); setTimeout(() => setNotifTestStatus(p => ({ ...p, email:null })), 3000); })
+                        .catch(() => { setNotifTestStatus(p => ({ ...p, email:'error' })); setTimeout(() => setNotifTestStatus(p => ({ ...p, email:null })), 4000); });
+                      }}
+                      style={{ width:'100%', padding:'10px', borderRadius:8, border:'1px solid rgba(59,130,246,0.4)', background:'rgba(59,130,246,0.1)', color:'#60a5fa', fontSize:13, fontWeight:600, cursor: fullyConfigured ? 'pointer' : 'not-allowed', opacity: fullyConfigured ? 1 : 0.4, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                      <Send style={{ width:13, height:13 }} />
+                      {notifTestStatus.email==='sending' ? 'Sending…' : notifTestStatus.email==='sent' ? '✓ Test email sent!' : notifTestStatus.email==='error' ? '✗ Send failed — check credentials' : 'Send Test Email'}
+                    </button>
+                  </>)}
                 </div>
-                {notificationSettings.email.enabled && (<>
-                  <div style={{ marginBottom:12 }}>
-                    <div style={{ fontSize:11, color:'#94a3b8', marginBottom:6 }}>Recipient Email Address</div>
-                    <input type="email" value={notificationSettings.email.address}
-                      onChange={e => setNotificationSettings(prev => ({ ...prev, email: { ...prev.email, address: e.target.value } }))}
-                      placeholder="soc-team@hospital.org"
-                      style={{ width:'100%', padding:'10px 12px', borderRadius:8, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'white', fontSize:13, outline:'none', boxSizing:'border-box' }}
-                      onFocus={e=>e.target.style.borderColor='#3b82f6'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}
-                    />
-                  </div>
-                  <div style={{ marginBottom:12 }}>
-                    <div style={{ fontSize:11, color:'#94a3b8', marginBottom:6 }}>Alert Severity Filter</div>
-                    <SevFilter channel="email" />
-                  </div>
-                  <button disabled={!notificationSettings.email.address}
-                    onClick={() => {
-                      const s = `[IoMT-SOC TEST] Email notifications configured`;
-                      const b = `Test from IoMT Security Operations Center.\nRecipient: ${notificationSettings.email.address}\nSeverity filters: ${['critical','high','medium'].filter(l=>notificationSettings.email[l]).join(', ')}\n\nReal alerts fire automatically when threats are detected.`;
-                      window.open(`mailto:${notificationSettings.email.address}?subject=${encodeURIComponent(s)}&body=${encodeURIComponent(b)}`);
-                      setNotifTestStatus(p => ({ ...p, email: 'sent' }));
-                      setTimeout(() => setNotifTestStatus(p => ({ ...p, email: null })), 3000);
-                    }}
-                    style={{ width:'100%', padding:'10px', borderRadius:8, border:'1px solid rgba(59,130,246,0.4)', background:'rgba(59,130,246,0.1)', color:'#60a5fa', fontSize:13, fontWeight:600, cursor: notificationSettings.email.address ? 'pointer' : 'not-allowed', opacity: notificationSettings.email.address ? 1 : 0.4, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                    <Send style={{ width:13, height:13 }} />
-                    {notifTestStatus.email === 'sent' ? '✓ Opening mail client…' : 'Send Test Email'}
-                  </button>
-                  <p style={{ fontSize:11, color:'#334155', marginTop:8, lineHeight:1.5 }}>Opens your mail client with a pre-filled message. Real alerts dispatch automatically on threat detection.</p>
-                </>)}
-              </div>
+                );
+              })()}
 
               {/* SLACK */}
               <div style={{ borderRadius:12, border:`1px solid ${notificationSettings.slack.enabled && notificationSettings.slack.webhookUrl ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.08)'}`, padding:16, background: notificationSettings.slack.enabled && notificationSettings.slack.webhookUrl ? 'rgba(168,85,247,0.05)' : 'rgba(255,255,255,0.02)' }}>
