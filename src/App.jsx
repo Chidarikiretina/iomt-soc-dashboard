@@ -1573,10 +1573,11 @@ export default function IoMTDashboard() {
         // Push bidirectional ACL rules blocking the quarantine subnet from IoMT VLAN
         const ts = new Date().toLocaleTimeString();
         setAclRules(prev => [
-          { id: Date.now(),     device: alert.device, seq: 10, action: 'DENY',   src: VLAN_DEFS[20].subnet, dst: VLAN_DEFS[99].subnet, proto: 'ip', appliedTo: 'VLAN 20 SVI', time: ts, active: true },
-          { id: Date.now()+1,  device: alert.device, seq: 20, action: 'DENY',   src: VLAN_DEFS[99].subnet, dst: VLAN_DEFS[20].subnet, proto: 'ip', appliedTo: 'VLAN 99 SVI', time: ts, active: true },
-          { id: Date.now()+2,  device: alert.device, seq: 30, action: 'DENY',   src: newIP+'/32',          dst: 'any',                proto: 'ip', appliedTo: 'VLAN 99 SVI', time: ts, active: true },
-          ...prev,
+          { id: Date.now(),    device: alert.device, seq: 10, action: 'DENY', src: VLAN_DEFS[20].subnet, dst: VLAN_DEFS[99].subnet, proto: 'ip', appliedTo: 'VLAN 20 SVI', time: ts, active: true },
+          { id: Date.now()+1, device: alert.device, seq: 20, action: 'DENY', src: VLAN_DEFS[99].subnet, dst: VLAN_DEFS[20].subnet, proto: 'ip', appliedTo: 'VLAN 99 SVI', time: ts, active: true },
+          { id: Date.now()+2, device: alert.device, seq: 30, action: 'DENY', src: newIP+'/32',          dst: 'any',                proto: 'ip', appliedTo: 'VLAN 99 SVI', time: ts, active: true },
+          // Remove any pre-existing rules for this device to avoid duplicates
+          ...prev.filter(r => r.device !== alert.device),
         ]);
         setAlerts(prev => prev.map(a => a.id === alert.id && !a.respondedAt ? { ...a, respondedAt: Date.now() } : a));
         setIsolationMeta(prev => ({
@@ -5161,13 +5162,14 @@ ${[
 
                 {/* ACL / Subnet Block Panel — shown when devices are isolated */}
                 {aclRules.length > 0 && (
-                  <div className="flex-shrink-0 border-t border-slate-700/40 bg-slate-900/40 px-3 py-2">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-shrink-0 border-t border-slate-700/40 bg-slate-900/40 px-3 py-2" style={{maxHeight:'180px', display:'flex', flexDirection:'column'}}>
+                    <div className="flex items-center gap-2 mb-2 flex-shrink-0">
                       <Shield className="w-3.5 h-3.5 text-red-400"/>
                       <span className="text-base font-bold text-red-400">Active Subnet Blocks / ACL Rules</span>
-                      <span className="ml-auto px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-base font-bold">{aclRules.length} rules</span>
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-base font-bold">{aclRules.length} rules</span>
+                      <button onClick={() => setAclRules([])} className="ml-auto text-xs text-slate-500 hover:text-red-400 transition-colors">Clear all</button>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-auto flex-1">
                       <table className="w-full text-base">
                         <thead>
                           <tr className="text-slate-500">
