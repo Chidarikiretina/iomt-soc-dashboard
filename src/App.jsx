@@ -1383,7 +1383,6 @@ export default function IoMTDashboard() {
         totalPackets: prev.totalPackets + newData.packets,
         anomalies: prev.anomalies + (newData.anomalyScore > 0.7 ? 1 : 0),
       }));
-      setConfidenceScore(prev => Math.min(99, Math.max(75, prev + (Math.random() - 0.5) * 1.5)));
 
       // Random threat intel update
       if (Math.random() > 0.85) {
