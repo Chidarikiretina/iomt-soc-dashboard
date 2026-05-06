@@ -3610,7 +3610,7 @@ ${[
                                 {mitre.techniqueId && !isFP && <span className="text-base text-purple-400 font-mono">{mitre.techniqueId}</span>}
                               </div>
                               <p className="text-base font-medium truncate">{alert.message}</p>
-                              <p className="text-base text-slate-500">{alert.device} • {alert.time} • {Number(alert.confidence||0).toFixed(0)}% conf</p>
+                              <p className="text-base text-slate-500">{alert.device} • {alert.time} • {Number(alert.confidence||0).toFixed(1)}% conf</p>
                             </div>
                             <button onClick={e=>{e.stopPropagation();setSelectedAlert(alert);setShowAlertPanel(true);}} className="p-1 rounded hover:bg-slate-600/50 flex-shrink-0">
                               <Eye className="w-3 h-3 text-slate-400"/>
@@ -6192,7 +6192,7 @@ ${[
                 { id:'DEV-003', name:'Pulse Oximeter',  vendor:'Masimo',      fw:'1.9.3', patch:'Current',   vlan:'VLAN-20 Clinical', status:'online',  risk:'low',    ip:'192.168.20.35', lastSeen:'3 min ago' },
                 { id:'DEV-004', name:'ECG Monitor',     vendor:'GE Healthcare',fw:'3.0.2', patch:'EOL',       vlan:'VLAN-20 Clinical', status:'online',  risk:'high',   ip:'192.168.20.41', lastSeen:'Just now'  },
                 { id:'DEV-005', name:'MRI Controller',  vendor:'Siemens',     fw:'6.2.0', patch:'Current',   vlan:'VLAN-30 Imaging',  status:'offline', risk:'medium', ip:'192.168.30.10', lastSeen:'18 min ago'},
-                { id:'DEV-006', name:'Ventilator',      vendor:'Medtronic',   fw:'2.1.0', patch:'Pending',   vlan:'VLAN-20 Clinical', status:'online',  risk:'high',   ip:'192.168.20.60', lastSeen:'Just now'  },
+                { id:'DEV-006', name:'Smart Bed',       vendor:'Stryker',     fw:'1.4.2', patch:'Current',   vlan:'VLAN-20 Clinical', status:'online',  risk:'low',    ip:'192.168.20.61', lastSeen:'5 min ago' },
               ];
               const aclRulesList = [
                 { id:'ACL-001', src:'VLAN-20',        dst:'VLAN-10 Corp', action:'DENY',  proto:'ANY',  port:'*',    reason:'Clinical isolation' },
@@ -6204,7 +6204,7 @@ ${[
               const patches = [
                 { device:'Heart Monitor',  cve:'CVE-2025-1183', severity:'high',   status:'awaiting_vendor', vendor:'Philips',      eta:'Q3 2026', compensating:'Network isolation applied' },
                 { device:'ECG Monitor',    cve:'CVE-2024-9821', severity:'critical',status:'eol',            vendor:'GE Healthcare', eta:'N/A',     compensating:'VLAN micro-segment + IDS rule' },
-                { device:'Ventilator',     cve:'CVE-2025-3341', severity:'high',   status:'testing',         vendor:'Medtronic',    eta:'2 weeks',  compensating:'Disabled remote access port' },
+                { device:'Pulse Oximeter', cve:'CVE-2025-3341', severity:'high',   status:'testing',         vendor:'Masimo',       eta:'2 weeks',  compensating:'Disabled remote access port' },
                 { device:'Infusion Pump',  cve:'CVE-2025-0092', severity:'medium', status:'scheduled',       vendor:'BD Alaris',    eta:'May 2026', compensating:'None required' },
               ];
               const vendors = [
