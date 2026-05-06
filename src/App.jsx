@@ -1511,7 +1511,7 @@ export default function IoMTDashboard() {
           confidence: `${alert.confidence}%`,
           time:       new Date().toLocaleString(),
         },
-        email.publicKey
+        { publicKey: email.publicKey }
       ).then(() => {
         setNotifications(prev => [
           { id: Date.now(), type:'email', recipient: email.address, alert:`${alert.type} on ${alert.device}`, status:'sent',   time: timeStr, severity: alert.severity },
@@ -7143,7 +7143,7 @@ ${[
                           to_email: em.address, severity:'TEST', device:'IoMT SOC Dashboard',
                           alert_type:'Test Notification', source_ip:'—', confidence:'—',
                           time: new Date().toLocaleString(),
-                        }, em.publicKey)
+                        }, { publicKey: em.publicKey })
                         .then(()  => { setNotifTestStatus(p => ({ ...p, email:'sent'  })); setTimeout(() => setNotifTestStatus(p => ({ ...p, email:null })), 3000); })
                         .catch(() => { setNotifTestStatus(p => ({ ...p, email:'error' })); setTimeout(() => setNotifTestStatus(p => ({ ...p, email:null })), 4000); });
                       }}
